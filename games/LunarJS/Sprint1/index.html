@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+    <style>
+        body {
+            margin:0;
+            display:flex;
+            height:100vh;
+            font-family:sans-serif;
+            justify-content:center;
+            align-items:center;
+        }
+    </style>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <title>LunarJS</title>
+    </head>
+    <body>
+        <canvas id="game"></canvas>
+    </body>
+    <script>
+const WIDTH = 500
+const HEIGHT = 500
+const SPEED = 2
+const canvas = document.getElementById('game')
+canvas.width = WIDTH
+canvas.height = HEIGHT
+const ctx = canvas.getContext('2d')
+function renderRect(color,x,y,w,h) {
+    ctx.fillStyle = color
+    ctx.fillRect(x,y,w,h)
+}
+function renderCircle(color,x,y,d) {
+    ctx.beginPath()
+    ctx.arc(x,y,d/2,0,2*Math.PI)
+    ctx.fillStyle = color
+    ctx.fill()
+}
+const keys = {
+    up:{pressed:false},
+    down:{pressed:false},
+    left:{pressed:false},
+    right:{pressed:false},
+}
+const mouse = {
+    x:0,
+    y:0,
+    pressed:false,
+}
+class Player {
+    constructor(x,y) {
+        this.x = x
+        this.y = y
+    }
+    update() {
+        const speed = SPEED
+        if(keys.up.pressed && this.y>0) this.y -= speed
+        if(keys.down.pressed && this.y<HEIGHT) this.y += speed
+        if(keys.left.pressed && this.x>0) this.x -= speed
+        if(keys.right.pressed && this.x<WIDTH) this.x += speed
+    }
+}
+class Projectile {
+    constructor(x,y,dir,evil=false) {
+        this.x = x
+        this.y = y
+        this.dir = dir
+        this.evil = evil
+    }
+    update() {
+        const speed = SPEED*2
+        this.x += Math.cos(this.dir)*speed
+        this.y += Math.sin(this.dir)*speed
+    }
+}
+const player = new Player(WIDTH/2,HEIGHT/2)
+let projectiles = []
+let lives = 3
+function animate() {
+    function renderBG() {
+        renderRect('black',0,0,WIDTH,HEIGHT)
+    }
+    function renderMouse() {
+        if(mouse.pressed) renderCircle('red',mouse.x,mouse.y,10)
+    }
+    function renderLives() {
+        for(let i=0;i<lives;i++)
+            renderCircle('red',10+15*i,10,10)
+    }
+    function renderPlayer() {
+        renderCircle('blue',player.x,player.y,20)
+    }
+    function renderProjectiles() {
+        projectiles.forEach(p => renderCircle(p.evil ? '#f6a' : 'white',p.x,p.y,8))
+    }
+    function render() {
+        /* 0 */ renderBG()
+        /* 1 */ renderLives()
+        /* 2 */ renderProjectiles()
+        /* 3 */ renderPlayer()
+    }
+    function update() {
+        player.update()
+        projectiles.forEach(p => p.update())
+        projectiles = projectiles.filter(p => p.x>0 && p.x<WIDTH && p.y>0 && p.y<HEIGHT)
+    }
+    render()
+    update()
+    requestAnimationFrame(animate)
+}
+addEventListener('keydown',({key}) => {
+    if(key=='ArrowUp') keys.up.pressed = true
+    if(key=='ArrowDown') keys.down.pressed = true
+    if(key=='ArrowLeft') keys.left.pressed = true
+    if(key=='ArrowRight') keys.right.pressed = true
+})
+addEventListener('keyup',({key}) => {
+    if(key=='ArrowUp') keys.up.pressed = false
+    if(key=='ArrowDown') keys.down.pressed = false
+    if(key=='ArrowLeft') keys.left.pressed = false
+    if(key=='ArrowRight') keys.right.pressed = false
+})
+addEventListener('mousedown',() => {
+    mouse.pressed = true
+    projectiles.push(new Projectile(player.x,player.y,Math.atan2(mouse.y-player.y,mouse.x-player.x)))
+})
+addEventListener('mouseup',() => {
+    mouse.pressed = false
+})
+addEventListener('mousemove',({pageX,pageY}) => {
+    mouse.x = pageX - canvas.offsetLeft
+    mouse.y = pageY - canvas.offsetTop
+})
+addEventListener('load',() => {
+    animate()
+})
+    </script>
+</html>

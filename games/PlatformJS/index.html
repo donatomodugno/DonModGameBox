@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+
+<style>
+    body {
+        font-family:sans-serif;
+        text-align:center;
+    }
+    div {
+        padding:40px;
+        margin:auto;
+        margin-top:10%;
+        border:solid 1px lightgrey;
+        display:inline-block;
+        border-radius:10px;
+    }
+    h1 {
+        margin-bottom:50px;
+    }
+    img {
+        vertical-align:text-bottom;
+    }
+    select,button {
+        font-size:150%;
+        margin:10px;
+    }
+</style>
+
+<title>PlatformJS</title>
+<link rel="icon" href="favicon.gif"/>
+
+<div>
+    <h1>
+        <img src="favicon.gif"/>
+        <span>PlatformJS</span>
+    </h1>
+    <h2>Select sprint</h2>
+    <select onchange="checkMobile()" id="selectSprint"></select>
+    <button onclick="play()">Play!</button>
+</div>
+
+<script>
+    const NUM_SPRINTS = 5
+    const SEL_SPRINT = 3
+    const MOBILE = navigator.userAgent.match(/mobile/i) ? true : false
+    let mobile_available = []
+
+    let selector = document.getElementById('selectSprint')
+    let opt = document.createElement('option')
+    opt.text = 'Sprint 0 (MarioJS)'
+    opt.value = 0
+    selector.appendChild(opt)
+    mobile_available.push(true)
+
+    for(let i=1;i<=NUM_SPRINTS;i++) {
+        let opt = document.createElement('option')
+        opt.text = 'Sprint '+i
+        opt.value = i
+        if(i==SEL_SPRINT) opt.selected = true
+        selector.appendChild(opt)
+        mobile_available.push(false)
+    }
+
+    function checkMobile() {
+        if(MOBILE && !mobile_available[document.getElementById('selectSprint').value-1]) {
+            alert('This sprint is not available in mobile version! Please select another sprint')
+            let button = document.querySelector('button')
+            button.disabled = true
+        }
+    }
+
+    function play() {
+        let sprint = document.getElementById('selectSprint').value
+        location = sprint>0 ? './Sprint'+sprint+'/index.html' : 'https://donatomodugno.github.io/MarioJS'
+    }
+
+    checkMobile()
+</script>
