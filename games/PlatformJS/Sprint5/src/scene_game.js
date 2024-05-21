@@ -70,9 +70,19 @@ function gameSceneLoop() {
             //     -game.camera.x,-game.camera.y,game.level.w,game.level.h,
             //     {0:'black',0.2:'green',0.5:'yellow',0.7:'purple',1:'blue'}
             // )
+
+            // lib.renderRadialGradient(
+            //     game.level.w/2-game.camera.x,game.level.h/2-game.camera.y,lib.distance(0,0,game.level.w/2,game.level.h/2),
+            //     {0:'white',0.2:'lightblue',1:'purple'}
+            // )
+            
             lib.renderRadialGradient(
                 game.level.w/2-game.camera.x,game.level.h/2-game.camera.y,lib.distance(0,0,game.level.w/2,game.level.h/2),
-                {0:'white',0.2:'lightblue',1:'purple'}
+                [
+                    {offset:0,color:'white'},
+                    {offset:0.2,color:'lightblue'},
+                    {offset:1,color:'purple'},
+                ]
             )
         }
         renderBackground()

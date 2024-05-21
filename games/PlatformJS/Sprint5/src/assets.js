@@ -1,6 +1,6 @@
-const BS = 32
-const BPW = 20
-const BPH = 15
+const BS = 32 /* BLOCK_SIZE */
+const BPW = 20 /* BLOCKS_PER_WIDTH */
+const BPH = 15 /* BLOCKS_PER_HEIGHT */
 const [W,H] = [BS*BPW,BS*BPH]
 const canvas = document.getElementById('surface')
 canvas.width = W
@@ -8,6 +8,14 @@ canvas.height = H
 canvas.style.border = 'solid black 5px'
 canvas.style.borderRadius = '10px'
 const ctx = canvas.getContext('2d')
+// const title = document.createElement('h1')
+// const subtitle = document.createElement('p')
+// title.style.textAlign = 'center'
+// title.innerText = 'PlatformJS (sprint 5)'
+// subtitle.innerText = 'by Donato Modugno, 2024-05-01'
+const wrapper = document.getElementById('wrapper')
+// wrapper.before(title)
+// wrapper.after(subtitle)
 
 const keys = {
     ArrowUp:{pressed:false},
@@ -19,6 +27,12 @@ const keys = {
     c:{pressed:false},
     v:{pressed:false},
     ' ':{pressed:false},
+}
+
+const mouse = {
+    x:0,
+    y:0,
+    pressed:false
 }
 
 const assets = {
@@ -36,6 +50,9 @@ const assets = {
             'SMAS-SMB1-hills':{ext:'.png',frames:1},
             'SMAS-SMB1-clouds':{ext:'.png',frames:1},
             'SMAS-SMB1-sky':{ext:'.png',frames:1},
+        },
+        ui:{
+            'SMAS-SMB1-font':{},
         },
     },
     music:{
@@ -70,6 +87,7 @@ const lib = {
     },
     musicStop() {
         assets.music['TSMBM-PressStart-loop'].audio.pause()
+        assets.music['TSMBM-PressStart-loop'].audio.currentTime = 0
     },
     renderRect(x,y,w,h,color) {
         global.ctx.fillStyle = color
@@ -86,15 +104,18 @@ const lib = {
     },
     renderLinearGradient(x,y,w,h,stops) {
         const gradient = global.ctx.createLinearGradient(x,y,x+w,y+h)
-        Object.entries(stops).forEach(([stop,color]) => {
-            gradient.addColorStop(stop,color)
+        Object.entries(stops).forEach(([offset,color]) => {
+            gradient.addColorStop(offset,color)
         })
         lib.renderRect(x,y,w,h,gradient)
     },
     renderRadialGradient(x,y,r,stops) {
         const gradient = global.ctx.createRadialGradient(x,y,0,x,y,r)
-        Object.entries(stops).forEach(([stop,color]) => {
-            gradient.addColorStop(stop,color)
+        // Object.entries(stops).forEach(([offset,color]) => {
+        //     gradient.addColorStop(offset,color)
+        // })
+        stops.forEach(({offset,color}) => {
+            gradient.addColorStop(offset,color)
         })
         lib.renderRect(x-r,y-r,r*2,r*2,gradient)
     },

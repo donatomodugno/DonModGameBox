@@ -1,6 +1,6 @@
 function mainInit() {
-    global.scene = 'menu'
     global.ctx = ctx
+    lib.sceneChange('menu')
 }
 
 function mainKeyPress(key) {

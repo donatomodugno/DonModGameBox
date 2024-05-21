@@ -15,4 +15,17 @@ addEventListener('load',() => {
             mainKeyRelease(key)
         }
     })
+    addEventListener('mousemove',({pageX,pageY}) => {
+        const borders = getComputedStyle(canvas)
+        mouse.x = pageX - wrapper.offsetLeft - parseInt(borders.borderLeftWidth)
+        mouse.y = pageY - wrapper.offsetTop - parseInt(borders.borderTopWidth)
+    })
+    addEventListener('mousedown',() => {
+        mouse.pressed = true
+        mainKeyPress('mouse')
+    })
+    addEventListener('mouseup',() => {
+        mouse.pressed = false
+        mainKeyRelease('mouse')
+    })
 })
