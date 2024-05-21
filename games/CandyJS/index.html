@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<style>
+    body {
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: sans-serif;
+    }
+</style>
+<title>CandyJS</title>
+<link rel="icon" href="./assets/favicon.gif"/>
+<div>
+    <canvas id="game">
+        Loading error
+    </canvas>
+</div>
+<script>
+    const WIDTH = 500
+    const HEIGHT = 500
+    const canvas = document.getElementById('game')
+    const ctx = canvas.getContext('2d')
+    canvas.width = WIDTH
+    canvas.height = HEIGHT
+    canvas.style.borderRadius = '10px'
+    const CANDIES_NUM = 6-1
+    const CANDIES = ['black','red','green','blue','yellow','orange','purple']
+    const table = [
+        [
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+        ],
+        [
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+        ]
+    ]
+    let messy = true
+    let selected = {
+        j:-1,
+        i:-1,
+        state:false
+    }
+    function tableCheck() {
+        messy = false
+        for(let i=0;i<10;i++) {
+            let current = -1
+            let streak = 1
+            for(let j=0;j<10;j++) {
+                if(table[0][i][j]==current) streak++
+                else {
+                    current = table[0][i][j]
+                    streak = 1
+                }
+                if(streak>2) {
+                    messy = true
+                    for(let k=0;k<streak;k++) table[1][i][j-k] = 1
+                }
+            }
+        }
+        for(let j=0;j<10;j++) {
+            let current = -1
+            let streak = 1
+            for(let i=0;i<10;i++) {
+                if(table[0][i][j]==current) streak++
+                else {
+                    current = table[0][i][j]
+                    streak = 1
+                }
+                if(streak>2) {
+                    messy = true
+                    for(let k=0;k<streak;k++) table[1][i-k][j] = 1
+                }
+            }
+        }
+    }
+    function tableFall() {
+        for(let j=0;j<10;j++) {
+            let pos = 9
+            for(let i=9;i>=0;i--) {
+                table[0][pos][j] = table[0][i][j]
+                if(table[1][i][j]==0) pos--
+                else table[1][i][j] = 0
+            }
+            for(let i=0;i<=pos;i++) table[0][i][j] = 0
+        }
+    }
+    function tableFill() {
+        for(let i=0;i<10;i++)
+            for(let j=0;j<10;j++)
+                if(table[0][i][j] == 0)
+                    table[0][i][j] = Math.round(Math.random()*CANDIES_NUM)+1
+    }
+    function tableCrush() {
+        while(messy) {
+            tableCheck()
+            tableFall()
+            tableFill()
+        }
+    }
+    function GameLoop() {
+        ctx.clearRect(0,0,WIDTH,HEIGHT)
+        ctx.fillStyle = '#AEF'//'pink'
+        ctx.fillRect(0,0,WIDTH,HEIGHT)
+        ctx.fillStyle = 'white'
+        for(let i=1;i<10;i++) ctx.fillRect(0,i*50,WIDTH,1)
+        for(let i=1;i<10;i++) ctx.fillRect(i*50,0,1,HEIGHT)
+        for(let i=0;i<10;i++) for(let j=0;j<10;j++) {
+            ctx.fillStyle = CANDIES[table[0][i][j]]
+            ctx.fillRect(j*50+10,i*50+10,30,30)
+            if(table[1][i][j]==1) ctx.fillStyle = 'grey'
+            if(selected.state && i==selected.i && j==selected.j) ctx.fillStyle = '#AEF'
+            ctx.fillRect(j*50+20,i*50+20,10,10)
+        }
+        requestAnimationFrame(GameLoop)
+    }
+    function main() {
+        tableCrush()
+        GameLoop()
+    }
+    addEventListener('load',() => main())
+    addEventListener('contextmenu',(e) => e.preventDefault())
+    addEventListener('mousedown',({pageX,pageY,button}) => {
+        pageX -= canvas.offsetLeft
+        pageY -= canvas.offsetTop
+        let [j,i] = [Math.floor(pageX/50),Math.floor(pageY/50)]
+        if(button==0) {
+            if(selected.state) {
+                if((j==selected.j && Math.abs(i-selected.i)<2) || (i==selected.i && Math.abs(j-selected.j)<2)) {
+                    let tmp = table[0][i][j]
+                    table[0][i][j] = table[0][selected.i][selected.j]
+                    table[0][selected.i][selected.j] = tmp
+                }
+                selected.state = false
+                messy = true
+                tableCrush()
+            }
+            else {
+                selected.j = j
+                selected.i = i
+                selected.state = true
+            }
+        }
+    })
+</script>
