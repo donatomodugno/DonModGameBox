@@ -65,9 +65,14 @@ const global = {}
 
 const lib = {
     ...utils,
-    sceneChange(scene) {
-        global.scene = scene
-        window[scene+'SceneInit']()
+    sceneChange(scene,{type='fade',sleep=1000}={type:'none'}) {
+        if(type=='none') {
+            global.scene = scene
+            window[scene+'SceneInit']()
+        } else {
+            global.scene = scene
+            window[scene+'SceneInit']()
+        }
     },
     loadResources() {
         Object.entries(assets.graphics).forEach(([type,list]) => {
@@ -111,10 +116,7 @@ const lib = {
     },
     renderRadialGradient(x,y,r,stops) {
         const gradient = global.ctx.createRadialGradient(x,y,0,x,y,r)
-        // Object.entries(stops).forEach(([offset,color]) => {
-        //     gradient.addColorStop(offset,color)
-        // })
-        stops.forEach(({offset,color}) => {
+        Object.entries(stops).forEach(([offset,color]) => {
             gradient.addColorStop(offset,color)
         })
         lib.renderRect(x-r,y-r,r*2,r*2,gradient)

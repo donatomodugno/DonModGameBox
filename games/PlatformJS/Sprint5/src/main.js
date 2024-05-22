@@ -14,5 +14,6 @@ function mainKeyRelease(key) {
 function mainLoop() {
     requestAnimationFrame(mainLoop)
     lib.renderClear()
+    wrapper.style.cursor = 'default'
     window[global.scene+'SceneLoop']()
 }

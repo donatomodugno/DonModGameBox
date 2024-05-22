@@ -8,9 +8,10 @@ class Button {
         this.callback = callback
     }
     render() {
-        if(lib.checkIntersectionPoint(this.x,this.y,this.w,this.h,mouse.x,mouse.y))
+        if(lib.checkIntersectionPoint(this.x,this.y,this.w,this.h,mouse.x,mouse.y)) {
             lib.renderRect(this.x,this.y,this.w,this.h,'yellow')
-        else
+            wrapper.style.cursor = 'pointer'
+        } else
             lib.renderRect(this.x,this.y,this.w,this.h,'orange')
     }
     update() {}
@@ -39,6 +40,5 @@ function menuSceneKeyPress(key) {
 function menuSceneKeyRelease(key) {}
 
 function menuSceneLoop() {
-    // lib.renderRect(30,30,300,100,'grey')
     menu.buttons.forEach(b => b.render())
 }
