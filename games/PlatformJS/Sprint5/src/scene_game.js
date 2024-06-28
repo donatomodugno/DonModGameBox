@@ -1,6 +1,6 @@
-const GAME_PLAYER_W = 32
-const GAME_PLAYER_H = 64
-const GAME_PLAYER_SPEED = 0.1
+const GAME_PLAYER_W = BS
+const GAME_PLAYER_H = BS*1.75
+const GAME_PLAYER_SPEED = 4
 const GAME_PLAYER_SPEED_LIMIT = 5
 const GAME_PLAYER_SPEED_STEP = 1
 
@@ -23,23 +23,12 @@ class Player {
         lib.renderRect(this.x-game.camera.x,this.y-game.camera.y,this.w,this.h,'red')
     }
     update() {
-        this.acc.x = 0
-        this.acc.y = 0
-        if(keys.ArrowUp.pressed) this.acc.y -= GAME_PLAYER_SPEED
-        else if(this.vel.y<0) this.acc.y += GAME_PLAYER_SPEED
-        if(keys.ArrowDown.pressed) this.acc.y += GAME_PLAYER_SPEED
-        else if(this.vel.y>0) this.acc.y -= GAME_PLAYER_SPEED
-        if(keys.ArrowLeft.pressed) this.acc.x -= GAME_PLAYER_SPEED
-        else if(this.vel.x<0) this.acc.x += GAME_PLAYER_SPEED
-        if(keys.ArrowRight.pressed) this.acc.x += GAME_PLAYER_SPEED
-        else if(this.vel.x>0) this.acc.x -= GAME_PLAYER_SPEED
-
-        this.vel.x += this.acc.x
-        this.vel.y += this.acc.y
-        if(this.vel.x>GAME_PLAYER_SPEED_LIMIT) this.vel.x = GAME_PLAYER_SPEED_LIMIT
-        if(this.vel.y>GAME_PLAYER_SPEED_LIMIT) this.vel.y = GAME_PLAYER_SPEED_LIMIT
-        if(this.vel.x<-GAME_PLAYER_SPEED_LIMIT) this.vel.x = -GAME_PLAYER_SPEED_LIMIT
-        if(this.vel.y<-GAME_PLAYER_SPEED_LIMIT) this.vel.y = -GAME_PLAYER_SPEED_LIMIT
+        this.vel.x = 0
+        this.vel.y = 0
+        if(keys.ArrowLeft.pressed) this.vel.x -= GAME_PLAYER_SPEED
+        if(keys.ArrowRight.pressed) this.vel.x += GAME_PLAYER_SPEED
+        if(keys.ArrowUp.pressed) this.vel.y -= GAME_PLAYER_SPEED
+        if(keys.ArrowDown.pressed) this.vel.y += GAME_PLAYER_SPEED
         this.x += this.vel.x
         this.y += this.vel.y
     }
@@ -51,7 +40,7 @@ function gameSceneInit() {
     game.player = new Player(100,100)
     game.camera = {x:0,y:0}
     game.level = {
-        w:W*2,
+        w:W*6,
         h:H*2,
     }
     lib.musicPlay()
@@ -66,10 +55,37 @@ function gameSceneKeyRelease(key) {}
 function gameSceneLoop() {
     function render() {
         function renderBackground() {
-            lib.renderRadialGradient(
-                game.level.w/2-game.camera.x,game.level.h/2-game.camera.y,lib.distance(0,0,game.level.w/2,game.level.h/2),
-                {0:'white',0.2:'lightblue',1:'purple'}
-            )
+            function renderBackgroundFull(sprite) {
+                ctx.drawImage(sprite.img,0,0,W,H)
+            }
+            function renderBackgroundParallax(sprite,{zoom=sprite.zoom,slowness_x=1,slowness_y=1}={}) {
+                ctx.drawImage(
+                    sprite.img,
+                    (0-game.camera.x)/slowness_x,
+                    (game.level.h-sprite.img.naturalHeight*zoom-game.camera.y)/slowness_y,
+                    sprite.img.naturalWidth*zoom,
+                    sprite.img.naturalHeight*zoom
+                )
+                // console.log(game.level.h,sprite.img.naturalHeight*zoom,game.camera.y)
+            }
+            renderBackgroundFull(assets.graphics.backgrounds['SMAS-SMB1-sky'])
+            // ctx.drawImage(
+            //     assets.graphics.backgrounds['SMAS-SMB1-clouds'].img,
+            //     0-game.camera.x/2,
+            //     game.level.h-assets.graphics.backgrounds['SMAS-SMB1-clouds'].img.naturalHeight*2-game.camera.y/2,
+            //     assets.graphics.backgrounds['SMAS-SMB1-clouds'].img.naturalWidth*2,
+            //     assets.graphics.backgrounds['SMAS-SMB1-clouds'].img.naturalHeight*2
+            // )
+            renderBackgroundParallax(assets.graphics.backgrounds['SMAS-SMB1-clouds'],{slowness_x:4,slowness_y:4})
+            // ctx.drawImage(
+            //     assets.graphics.backgrounds['SMAS-SMB1-hills'].img,
+            //     0-game.camera.x,
+            //     game.level.h-assets.graphics.backgrounds['SMAS-SMB1-hills'].img.naturalHeight*2-game.camera.y,
+            //     assets.graphics.backgrounds['SMAS-SMB1-hills'].img.naturalWidth*2,
+            //     assets.graphics.backgrounds['SMAS-SMB1-hills'].img.naturalHeight*2
+            // )
+            renderBackgroundParallax(assets.graphics.backgrounds['SMAS-SMB1-hills'],{slowness_x:2,slowness_y:2})
+            renderBackgroundParallax(assets.graphics.blocks['SMAS-SMB1-block1'],{slowness_x:1,slowness_y:1,zoom:1})
         }
         renderBackground()
         game.player.render()

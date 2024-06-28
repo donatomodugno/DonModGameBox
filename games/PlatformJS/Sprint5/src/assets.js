@@ -2,20 +2,14 @@ const BS = 32 /* BLOCK_SIZE */
 const BPW = 20 /* BLOCKS_PER_WIDTH */
 const BPH = 15 /* BLOCKS_PER_HEIGHT */
 const [W,H] = [BS*BPW,BS*BPH]
+const wrapper = document.getElementById('wrapper')
 const canvas = document.getElementById('surface')
 canvas.width = W
 canvas.height = H
 canvas.style.border = 'solid black 5px'
 canvas.style.borderRadius = '10px'
 const ctx = canvas.getContext('2d')
-// const title = document.createElement('h1')
-// const subtitle = document.createElement('p')
-// title.style.textAlign = 'center'
-// title.innerText = 'PlatformJS (sprint 5)'
-// subtitle.innerText = 'by Donato Modugno, 2024-05-01'
-const wrapper = document.getElementById('wrapper')
-// wrapper.before(title)
-// wrapper.after(subtitle)
+ctx.imageSmoothingEnabled = false
 
 const keys = {
     ArrowUp:{pressed:false},
@@ -47,9 +41,9 @@ const assets = {
             'SMAS-SMB1-ground3':{ext:'.png',w:1,h:1,frames:1,collisions:['T','R']},
         },
         backgrounds:{
-            'SMAS-SMB1-hills':{ext:'.png',frames:1},
-            'SMAS-SMB1-clouds':{ext:'.png',frames:1},
-            'SMAS-SMB1-sky':{ext:'.png',frames:1},
+            'SMAS-SMB1-hills':{ext:'.png',frames:1,zoom:2},
+            'SMAS-SMB1-clouds':{ext:'.png',frames:1,zoom:2},
+            'SMAS-SMB1-sky':{ext:'.png',frames:1,zoom:1},
         },
         ui:{
             'SMAS-SMB1-font':{},
@@ -79,6 +73,7 @@ const lib = {
             Object.entries(list).forEach(([id,sprite]) => {
                 sprite.img = new Image()
                 sprite.img.src = 'res/graphics/'+type+'/'+id+sprite.ext
+                sprite.scale = H/sprite.img.naturalHeight
             })
         })
         Object.entries(assets.music).forEach(([id,music]) => {
