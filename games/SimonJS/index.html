@@ -14,6 +14,8 @@ body {
     <canvas id="surface"></canvas>
 </body>
 <script>
+
+/* 1. Game constants */
 const [W,H] = [500,500]
 const R = W/3
 const R_IN = R/3
@@ -23,16 +25,23 @@ const MILLIS = 500
 const DC = 0.7
 const PADD = 800
 const TONES = [220,277.18,329.63,440]
+
+/* 2. Devices properties */
+const mouse = {}
 const keys = {
     1:{pressed:false},
     3:{pressed:false},
     7:{pressed:false},
     9:{pressed:false},
 }
+
+/* 3. Canvas properties */
 const canvas = document.getElementById('surface')
 canvas.width = W
 canvas.height = H
 const ctx = canvas.getContext('2d')
+
+/* 4. Generic functions */
 function renderRect(x,y,w,h,color) {
     ctx.fillStyle = color
     ctx.fillRect(x,y,w,h)
@@ -73,6 +82,8 @@ function beep(tone=440) {
     osc.start()
     osc.stop(actx.currentTime+0.2)
 }
+
+/* 5. Game properties and game functions */
 const game = {}
 function playSeq() {
     game.seq.push(Math.floor(Math.random()*4)+1)
@@ -107,6 +118,8 @@ function checkSeq() {
     }
     game.quadrant = 0
 }
+
+/* 6. Main functions (init, loop, events) */
 function mainInit() {
     game.turn = false
     game.quadrant = 0
@@ -157,6 +170,8 @@ function mainKeyPress(key) {
 function mainKeyRelease(key) {
     if(game.turn) checkSeq()
 }
+
+/* 7. Input listeners */
 addEventListener('load',() => {
     mainInit()
     mainLoop()
