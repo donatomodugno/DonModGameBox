@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<title>SimonJS</title>
+<style>
+body {
+    margin:0;
+    background-color:black;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+</style>
+<body>
+    <canvas id="surface"></canvas>
+</body>
+<script>
+const [W,H] = [500,500]
+const R = W/3
+const R_IN = R/3
+const R_OUT = R*1.1
+const R_TURN = R_IN*0.7
+const MILLIS = 500
+const DC = 0.7
+const PADD = 800
+const TONES = [220,277.18,329.63,440]
+const keys = {
+    1:{pressed:false},
+    3:{pressed:false},
+    7:{pressed:false},
+    9:{pressed:false},
+}
+const canvas = document.getElementById('surface')
+canvas.width = W
+canvas.height = H
+const ctx = canvas.getContext('2d')
+function renderRect(x,y,w,h,color) {
+    ctx.fillStyle = color
+    ctx.fillRect(x,y,w,h)
+}
+function renderCircle(x,y,r,color) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(x,y,r,0,2*Math.PI)
+    ctx.fill()
+}
+function renderQuadrant(x,y,r,color,quad) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(x,y,r,(quad-1)*Math.PI/2,quad*Math.PI/2)
+    ctx.lineTo(x,y)
+    ctx.fill()
+}
+function renderRadialGradient(x,y,r,stops) {
+    const gradient = ctx.createRadialGradient(x,y,0,x,y,r)
+    Object.entries(stops).forEach(([offset,color]) => {
+        gradient.addColorStop(offset,color)
+    })
+    renderCircle(x,y,r,gradient)
+}
+function renderText(x,y,text) {
+    ctx.fillStyle = 'black'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+    ctx.font = '200% sans-serif'
+    ctx.fillText(text,x,y)
+}
+function beep(tone=440) {
+    const actx = new AudioContext()
+    const osc = actx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.value = tone
+    osc.connect(actx.destination)
+    osc.start()
+    osc.stop(actx.currentTime+0.2)
+}
+const game = {}
+function playSeq() {
+    game.seq.push(Math.floor(Math.random()*4)+1)
+    game.seq.forEach((e,i) => {
+        setTimeout(() => {
+            game.quadrant = e
+            if(game.seq.length>1) beep(TONES[e-1])
+        },PADD+MILLIS*i)
+        setTimeout(() => {
+            game.quadrant = 0
+        },PADD+MILLIS*(i+DC))
+    })
+    setTimeout(() => {
+        game.quadrant = 0
+        game.turn = true
+    },PADD+MILLIS*game.seq.length)
+}
+function checkSeq() {
+    if(game.quadrant==game.seq[game.count]) {
+        if(game.count<game.seq.length) {
+            game.count++
+        }
+        if(game.count==game.seq.length) {
+            game.turn = false
+            game.count = 0
+            game.score = game.seq.length
+            playSeq()
+        }
+    } else {
+        alert('Game over!\nYour score is '+game.score)
+        mainInit()
+    }
+    game.quadrant = 0
+}
+function mainInit() {
+    game.turn = false
+    game.quadrant = 0
+    game.seq = []
+    game.count = 0
+    game.score = 0
+    setTimeout(() => playSeq(),MILLIS)
+}
+function mainLoop() {
+    requestAnimationFrame(mainLoop)
+    function render() {
+        renderRect(0,0,W,H,'black')
+        renderCircle(W/2,H/2,R_OUT,'grey')
+        renderQuadrant(W/2,H/2,R,'red',1)
+        renderQuadrant(W/2,H/2,R,'yellow',2)
+        renderQuadrant(W/2,H/2,R,'green',3)
+        renderQuadrant(W/2,H/2,R,'blue',4)
+        if(game.quadrant>0) renderQuadrant(W/2,H/2,R_OUT,'#fff8',game.quadrant)
+        renderCircle(W/2,H/2,R_IN,'grey')
+        renderRadialGradient(W/2,H/2,R_TURN,{0.4:'grey',1:game.turn ? 'green' : 'red'})
+        renderText(W/2,H/2+2,game.score)
+    }
+    function update() {}
+    render()
+    update()
+}
+function mainMouseDown(x,y) {
+    if(game.turn) {
+        if(x>W/2 && y>H/2) game.quadrant = 1
+        if(x<W/2 && y>H/2) game.quadrant = 2
+        if(x<W/2 && y<H/2) game.quadrant = 3
+        if(x>W/2 && y<H/2) game.quadrant = 4
+        beep(TONES[game.quadrant-1])
+    }
+}
+function mainMouseUp(x,y) {
+    if(game.turn) checkSeq()
+}
+function mainKeyPress(key) {
+    if(game.turn) {
+        if(key==3) game.quadrant = 1
+        if(key==1) game.quadrant = 2
+        if(key==7) game.quadrant = 3
+        if(key==9) game.quadrant = 4
+        beep(TONES[game.quadrant-1])
+    }
+}
+function mainKeyRelease(key) {
+    if(game.turn) checkSeq()
+}
+addEventListener('load',() => {
+    mainInit()
+    mainLoop()
+    addEventListener('mousedown',({pageX,pageY}) => {
+        mainMouseDown(
+            pageX-canvas.offsetLeft,
+            pageY-canvas.offsetTop
+        )
+    })
+    addEventListener('mouseup',({pageX,pageY}) => {
+        mainMouseUp(
+            pageX-canvas.offsetLeft,
+            pageY-canvas.offsetTop
+        )
+    })
+    addEventListener('keydown',({key}) => {
+        if(Object.keys(keys).includes(key)) {
+            if(!keys[key].pressed) mainKeyPress(key)
+            keys[key].pressed = true
+        }
+    })
+    addEventListener('keyup',({key}) => {
+        if(Object.keys(keys).includes(key)) {
+            mainKeyRelease(key)
+            keys[key].pressed = false
+        }
+    })
+})
+</script>
