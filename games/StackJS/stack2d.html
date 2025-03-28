@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<style>body{margin:0}</style>
+<canvas id="surface"></canvas>
+<script>
+const [W,H] = [600,600]
+const STACK_SIZE = 10
+const CELL_HEIGHT = H/10
+const SPEED = 60
+const HUE_STEP = Math.PI/12
+const canvas = document.getElementById('surface')
+const ctx = canvas.getContext('2d')
+function renderRect(x,y,w,h,color) {
+    ctx.fillStyle = color
+    ctx.fillRect(x,y,w,h)
+}
+function renderClear(x=0,y=0,w=W,h=H) {
+    ctx.clearRect(x,y,w,h)
+}
+function radToHue(angle) {
+    const pi = Math.PI
+    const red = Math.max(0,255*Math.min(1,2-3/pi*Math.abs(angle)),255*Math.min(1,2-3/pi*Math.abs(angle-pi*2)))
+    const green = Math.max(0,255*Math.min(1,2-3/pi*Math.abs(angle-pi*2/3)))
+    const blue = Math.max(0,255*Math.min(1,2-3/pi*Math.abs(angle-pi*4/3)))
+    return 'rgb('+red+','+green+','+blue+')'
+}
+const game = {}
+function stackPush(item) {
+    game.stack.unshift(item)
+    if(game.stack.length>STACK_SIZE)
+        game.stack.pop()
+}
+function checkIntersection(x1,w1,x2,w2) {
+    if(x1+w1>x2 && x1<x2+w2)
+        return true
+    return false
+}
+function itemPos() {
+    return W/2+Math.sin(game.tick)*W/3-game.stack[0].w/2
+}
+function mainInit() {
+    canvas.width = W
+    canvas.height = H
+    game.tick = 0
+    game.count = 0
+    game.hue = 0
+    game.stack = []
+    for(let i=0;i<STACK_SIZE;i++)
+        stackPush({x:190,w:220,color:'black'})
+    stackPush({x:200,w:200,color:radToHue(game.hue)})
+    game.hue += HUE_STEP
+}
+function mainLoop() {
+    function render() {
+        renderClear()
+        renderRect(0,0,W,H,'lightblue')
+        // renderRect(200,0,200,H,'lightgrey')
+        ctx.fillStyle = 'black'
+        ctx.font = '30px Arial'
+        ctx.fillText(game.count,20,50)
+        renderRect(
+            itemPos(),
+            H/3,
+            game.stack[0].w,
+            CELL_HEIGHT-1,
+            // 'hsl('+game.hue*180/Math.PI+' 100 50)'
+            radToHue(game.hue)
+        )
+        for(let i=0;i<STACK_SIZE;i++) {
+            renderRect(
+                game.stack[i].x,
+                H/3+(i+1)*CELL_HEIGHT,
+                game.stack[i].w,
+                CELL_HEIGHT-1,
+                game.stack[i].color
+            )
+        }
+    }
+    function update() {
+        game.tick += Math.PI/SPEED
+        game.tick %= 2*Math.PI
+    }
+    render()
+    update()
+    requestAnimationFrame(mainLoop)
+}
+addEventListener('load',() => {
+    mainInit()
+    mainLoop()
+    addEventListener('keydown',({key}) => {
+        if(key==' ') {
+            if(checkIntersection(game.stack[0].x,game.stack[0].w,itemPos(),game.stack[0].w)) {
+                stackPush({
+                    x:Math.max(itemPos(),game.stack[0].x),
+                    w:Math.min(itemPos(),game.stack[0].x)-Math.max(itemPos(),game.stack[0].x)+game.stack[0].w,
+                    color:radToHue(game.hue)
+                })
+                game.hue += HUE_STEP
+                game.hue %= 2*Math.PI
+                game.count++
+            } else {
+                alert('hai perso')
+                mainInit()
+            }
+        }
+    })
+})
+</script>

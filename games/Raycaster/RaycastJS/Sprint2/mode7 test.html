@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<style>
+    #wrapper {
+        position:relative;
+    }
+    #floor {
+        position:absolute;
+        /* transform:perspective(120px) rotateX(65deg); */
+        /* perspective:120px; */
+        /* rotate:1 0 0 45deg; */
+    }
+    #main {
+        position:absolute;
+    }
+</style>
+<div id="wrapper">
+    <!--
+    <div id="floor">floor</div>
+    <div id="main">main</div>
+    -->
+    <canvas id="floor">main</canvas>
+    <canvas id="main">main</canvas>
+</div>
+<script>
+    const [W,H] = [200,200]
+    const cnv1 = document.getElementById('floor')
+    const cnv2 = document.getElementById('main')
+    cnv1.width = W
+    cnv1.height = H
+    cnv2.width = W
+    cnv2.height = H
+    cnv1.style = 'transform:perspective('+H/2+'px) rotateX(65deg); perspective-origin(100px)'
+    const ctx1 = cnv1.getContext('2d')
+    const ctx2 = cnv2.getContext('2d')
+    const grid = new Image()
+    grid.src = 'grid.jpg'
+    ctx1.fillStyle = 'yellow'
+    ctx1.fillRect(0,0,W,H)
+    ctx1.rotate(45)
+    ctx1.translate(80,-80)
+    ctx1.drawImage(grid,0,0,345,345,0,0,W,H)
+    ctx2.fillStyle = '#0f05'
+    ctx2.fillRect(0,0,W,H)
+</script>

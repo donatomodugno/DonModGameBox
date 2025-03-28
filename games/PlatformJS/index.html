@@ -23,55 +23,57 @@
         font-size:150%;
         margin:10px;
     }
+    p {
+        margin-bottom:0;
+    }
+    #mobile-warn {
+        color:red;
+    }
+    #wip-warn {
+        color:#fb0;
+    }
 </style>
 
 <title>PlatformJS</title>
 <link rel="icon" href="favicon.gif"/>
 
-<div>
+<div id="app">
     <h1>
         <img src="favicon.gif"/>
+        {{' '}}
         <span>PlatformJS</span>
     </h1>
     <h2>Select sprint</h2>
-    <select onchange="checkMobile()" id="selectSprint"></select>
-    <button onclick="play()">Play!</button>
+    <select id="selector" v-model="selected">
+        <option v-for="name in Object.keys(sprints)" :value="name">{{name}}</option>
+    </select>
+    {{' '}}
+    <button @click="play()">Play!</button>
+    <p id="mobile-warn" v-if="mobile && !sprints[selected].mobile">This sprint is not optimized for mobile!</p>
+    <p id="wip-warn" v-if="sprints[selected].wip">This sprint is work in progress</p>
 </div>
 
+<script src="vue.global.prod.js"></script>
 <script>
-    const NUM_SPRINTS = 5
-    const SEL_SPRINT = 5
-    const MOBILE = navigator.userAgent.match(/mobile/i) ? true : false
-    let mobile_available = []
-
-    let selector = document.getElementById('selectSprint')
-    let opt = document.createElement('option')
-    opt.text = 'Sprint 0 (MarioJS)'
-    opt.value = 0
-    selector.appendChild(opt)
-    mobile_available.push(true)
-
-    for(let i=1;i<=NUM_SPRINTS;i++) {
-        let opt = document.createElement('option')
-        opt.text = 'Sprint '+i
-        opt.value = i
-        if(i==SEL_SPRINT) opt.selected = true
-        selector.appendChild(opt)
-        mobile_available.push(false)
-    }
-
-    function checkMobile() {
-        if(MOBILE && !mobile_available[document.getElementById('selectSprint').value-1]) {
-            alert('This sprint is not available in mobile version! Please select another sprint')
-            let button = document.querySelector('button')
-            button.disabled = true
+Vue.createApp({
+    data() {
+        return {
+            mobile:navigator.userAgent.match(/mobile/i) ? true : false,
+            sprints:{
+                'Sprint 0 (MarioJS)':{location:'https://donatomodugno.github.io/MarioJS',mobile:true,wip:false},
+                'Sprint 1':{location:'./Sprint1/index.html',mobile:false,wip:false},
+                'Sprint 2':{location:'./Sprint2/index.html',mobile:false,wip:false},
+                'Sprint 3':{location:'./Sprint3/index.html',mobile:false,wip:false},
+                'Sprint 4':{location:'./Sprint4/index.html',mobile:false,wip:false},
+                'Sprint 5':{location:'./Sprint5/index.html',mobile:false,wip:true},
+            },
+            selected:'Sprint 4',
         }
-    }
-
-    function play() {
-        let sprint = document.getElementById('selectSprint').value
-        location = sprint>0 ? './Sprint'+sprint+'/index.html' : 'https://donatomodugno.github.io/MarioJS'
-    }
-
-    checkMobile()
+    },
+    methods:{
+        play() {
+            location = this.sprints[this.selected].location
+        },
+    },
+}).mount('#app')
 </script>

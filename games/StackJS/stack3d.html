@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StackJS</title>
+    <style>
+        body{margin:0}
+    </style>
+</head>
+<body>
+    <canvas id="surface"></canvas>
+</body>
+<script>
+const [W,H] = [500,500]
+const SPEED = 5
+const canvas = document.getElementById('surface')
+const ctx = canvas.getContext('2d')
+function renderRect(x,y,w,h,color) {
+    ctx.fillStyle = color
+    ctx.fillRect(x,y,w,h)
+}
+function clearRect(x=0,y=0,w=W,h=H) {
+    ctx.clearRect(x,y,w,h)
+}
+function transformIsoZoom(elev=2,zoom=3) {
+    ctx.resetTransform()
+    ctx.scale(zoom/2,zoom/2)
+    ctx.translate(-W*(1-1/zoom),H*(1/zoom-1/elev))
+    ctx.transform(1,-1/elev,1,1/elev,0,H/elev)
+    ctx.rotate(90*Math.PI/180)
+    ctx.translate(0,-H)
+}
+const game = {}
+function mainInit() {
+    canvas.width = W
+    canvas.height = H
+    game.sect = {}
+    game.sect.w = 100
+    game.sect.h = 100
+    game.sect.offset = 0
+    game.sect.offdir = true
+    game.vertical = false
+}
+function mainLoop() {
+    requestAnimationFrame(mainLoop)
+    function render() {
+        clearRect()
+        renderRect(0,0,W,H,'lightblue')
+        transformIsoZoom(2,3)
+        renderRect(0,0,W,H,'lightgrey')
+        renderRect(
+            /* ( 200 = 500 * 2/3 ) */
+            game.vertical ? 200 : game.sect.offset,
+            game.vertical ? game.sect.offset : 200,
+            game.sect.w,
+            game.sect.h,
+            'blue'
+        )
+        ctx.resetTransform()
+    }
+    function update() {
+        game.sect.offset += game.sect.offdir ? SPEED : -SPEED
+        if(game.sect.offset<=0 || game.sect.offset>=200)
+            game.sect.offdir = !game.sect.offdir
+    }
+    render()
+    update()
+}
+addEventListener('load',() => {
+    mainInit()
+    mainLoop()
+    addEventListener('keyup',({key}) => {
+        if(key==' ') {
+            game.vertical = !game.vertical
+            game.sect.offset = 0
+            game.sect.offdir = true
+        }
+    })
+})
+</script>
