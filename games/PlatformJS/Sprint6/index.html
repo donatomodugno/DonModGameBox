@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlatformJS (sprint 6)</title>
+</head>
+<style>
+    body {margin:0}
+</style>
+<body>
+    <canvas id="surface"></canvas>
+</body>
+<script>
+const BS = 32 /* Block Size */
+const BPW = 20 /* Blocks Per Width */
+const BPH = 15 /* Blocks Per Height */
+const [W,H] = [BS*BPW,BS*BPH] /* Width, Height */
+const canvas = document.getElementById("surface")
+canvas.width = W
+canvas.height = H
+const ctx = canvas.getContext("2d")
+ctx.imageSmoothingEnabled = false
+
+function renderRect(x,y,w,h,color) {
+    ctx.fillStyle = color
+    ctx.fillRect(x,y,w,h)
+}
+function renderClear(x=0,y=0,w=W,h=H) {
+    ctx.clearRect(x,y,w,h)
+}
+
+const keys_pressed = {
+    ArrowUp:false,
+    ArrowDown:false,
+    ArrowLeft:false,
+    ArrowRight:false,
+    h:false,
+    Enter:false,
+}
+const mouse = {
+    x:0,
+    y:0,
+    pressed:false,
+    last_pressed:{x:0,y:0},
+    last_released:{x:0,y:0},
+}
+
+class MenuScene {
+    constructor(buttons=[]) {
+        this.background = '#EEE'
+        this.buttons = buttons
+    }
+    loop() {
+        renderClear()
+        renderRect(0,0,W,H,this.background)
+        this.buttons.forEach(button => {
+            button.render()
+        })
+        if(mouse.pressed) {
+            renderRect(mouse.x-5,mouse.y-5,10,10,'red')
+        }
+    }
+    onKeyPress(key) {}
+    onKeyRelease(key) {
+        if(key=='Enter') load_world()
+    }
+    onMousePress() {}
+    onMouseRelease() {
+        this.buttons.forEach(button => {
+            if(this.checkCollitionPoint(mouse.x,mouse.y,button.x,button.x+button.w,button.y,button.y+button.h)) {
+                button.action()
+            }
+        })
+    }
+    checkCollitionPoint(ax,ay,bx1,bx2,by1,by2) {
+        return ax>bx1 && ax<bx2 && ay>by1 && ay<by2
+    }
+}
+class Button {
+    constructor(x,y,w,h,color,action) {
+        this.x = x
+        this.y = y
+        this.w = w
+        this.h = h
+        this.color = color
+        this.action = action
+    }
+    render() {
+        if(scene.checkCollitionPoint(mouse.x,mouse.y,this.x,this.x+this.w,this.y,this.y+this.h)) {
+            if(mouse.pressed)
+                renderRect(this.x,this.y,this.w,this.h,'#F50')
+            else
+                renderRect(this.x,this.y,this.w,this.h,'#FF0')
+        }
+        else
+            renderRect(this.x,this.y,this.w,this.h,this.color)
+    }
+}
+class WorldScene {
+    constructor(px,py,tiles=[],paths=[],sceneries=[]) {
+        this.CENTER = {x:BS/2-(W/2)%BS,y:BS/2-(H/2)%BS}
+        this.PLAYER_SPEED = 2
+        this.player = {
+            x:px*BS,
+            y:py*BS,
+            direction:'idle',
+        }
+        this.tiles = tiles
+        this.paths = paths
+        this.sceneries = sceneries
+    }
+    loop() {
+        /* Rendering */
+        function renderGrid(color) {
+            for(let i=0;i<=BPH;i++)
+                renderRect(0,scene.CENTER.y+i*BS-scene.player.y%BS,W,1,color)
+            for(let j=0;j<=BPW;j++)
+                renderRect(scene.CENTER.x+j*BS-scene.player.x%BS,0,1,H,color)
+        }
+        renderClear()
+        renderRect(0,0,W,H,'black')
+        this.tiles.forEach(tile => {
+            tile.render()
+        })
+        renderGrid('grey')
+        renderRect(W/2-BS/2,H/2-BS/2,BS,BS,'red')
+        /* Update */
+        if(this.player.direction=='left') this.player.x -= this.PLAYER_SPEED
+        if(this.player.direction=='right') this.player.x += this.PLAYER_SPEED
+        if(this.player.direction=='up') this.player.y -= this.PLAYER_SPEED
+        if(this.player.direction=='down') this.player.y += this.PLAYER_SPEED
+        if(this.player.x%BS==0 && this.player.y%BS==0)
+            if(
+                (this.player.direction=='left' && !keys_pressed.ArrowLeft)
+                || (this.player.direction=='right' && !keys_pressed.ArrowRight)
+                || (this.player.direction=='up' && !keys_pressed.ArrowUp)
+                || (this.player.direction=='down' && !keys_pressed.ArrowDown)
+            )
+                this.player.direction = 'idle'
+    }
+    onKeyPress(key) {
+        if(this.player.direction=='idle') {
+            if(key=='ArrowUp') this.player.direction = 'up'
+            if(key=='ArrowDown') this.player.direction = 'down'
+            if(key=='ArrowLeft') this.player.direction = 'left'
+            if(key=='ArrowRight') this.player.direction = 'right'
+        }
+        if(key=='h') {
+            console.log('Player:',this.player.x/BS,this.player.y/BS)
+            console.log('Tiles:')
+            this.tiles.forEach(tile => {
+                console.log(tile.x/BS,tile.y/BS,tile.type)
+            })
+        }
+    }
+    onKeyRelease(key) {
+        if(key=='Enter') load_level()
+    }
+    onMousePress() {}
+    onMouseRelease() {}
+}
+class Tile {
+    constructor(x,y,type) {
+        this.x = x*BS
+        this.y = y*BS
+        this.w = BS
+        this.h = BS
+        this.type = type
+    }
+    render() {
+        if(this.type=='ground') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#630')
+        if(this.type=='grass') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#080')
+        if(this.type=='water') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#26F')
+    }
+}
+class LevelScene {
+    constructor(w,h,px,py,blocks=[],bgos=[],npcs=[]) {
+        this.GRAVITY = 0.8
+        this.JUMP_STRENGTH = 15
+        this.MAX_FALL_SPEED = 20
+        this.w = w<W ? W : w
+        this.h = h<H ? H : h
+        this.camera = {x:0,y:0}
+        this.player = new Player(px,py)
+        this.blocks = blocks
+        this.bgos = bgos
+        this.npcs = npcs
+    }
+    loop() {
+        /* Rendering */
+        function renderGrid(color) {
+            for(let i=0;i<=BPH;i++)
+                renderRect(0,i*BS-scene.camera.y%BS,W,1,color)
+            for(let j=0;j<=BPW;j++)
+                renderRect(j*BS-scene.camera.x%BS,0,1,H,color)
+        }
+        renderClear()
+        renderRect(0,0,W,H,'#BBB')
+        this.blocks.forEach(block => {
+            block.render()
+        })
+        this.player.render()
+        renderGrid('grey')
+        /* Update */
+        this.player.update()
+    }
+    onKeyPress(key) {
+        if(key=='ArrowUp') this.player.jump()
+    }
+    onKeyRelease(key) {}
+    onMousePress() {}
+    onMouseRelease() {}
+    getCoordX(x) {
+        return x/BS
+    }
+    getCoordY(y) {
+        return (this.h-y)/BS
+    }
+    getCoords(x,y) {
+        return {x:getCoordX(x),y:getCoordY(y)}
+    }
+    checkCollision1D(ax1,ax2,bx1,bx2) {
+        return ax1<bx2 && ax2>bx1
+    }
+    checkCollision2D(ax1,ax2,bx1,bx2,ay1,ay2,by1,by2) {
+        if(this.checkCollision1D(ax1,ax2,bx1,bx2))
+            if(this.checkCollision1D(ay1,ay2,by1,by2))
+                return true
+        return false
+    }
+}
+class Player {
+    constructor(x,y) {
+        this.x = x
+        this.y = y
+        this.w = BS
+        this.h = BS*1.75
+        this.dx = 0
+        this.dy = 0
+        this.vx = 0
+        this.vy = 0
+        this.on_ground = false
+    }
+    render() {
+        renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,'red')
+    }
+    update() {
+        /* X axis */
+        this.dx = 0
+        if(keys_pressed.ArrowLeft) this.dx -= 5
+        if(keys_pressed.ArrowRight) this.dx += 5
+        scene.blocks.filter(block => !block.semisolid).forEach(block => {
+            if(scene.checkCollision2D(
+                this.x+this.dx,this.x+this.w+this.dx,block.x,block.x+block.w,
+                this.y-this.h,this.y,block.y-block.h,block.y
+            )) {
+                if(this.dx>0) {
+                    this.stopX(block.x-this.w)
+                }
+                if(this.dx<0) {
+                    this.stopX(block.x+block.w)
+                }
+            }
+        })
+        this.x += this.dx
+        if(this.x<W/2) scene.camera.x = 0
+        else if(this.x>scene.w-W/2) scene.camera.x = scene.w-W
+        else scene.camera.x = this.x-W/2
+        /* Y axis */
+        this.dy = 0
+        if(this.vy<=scene.MAX_FALL_SPEED)
+            this.vy += scene.GRAVITY
+        this.dy += this.vy
+        this.on_ground = false
+        scene.blocks.forEach(block => {
+            if(scene.checkCollision2D(
+                this.x,this.x+this.w,block.x,block.x+block.w,
+                this.y-this.h+this.dy,this.y+this.dy,block.y-block.h,block.y
+            )) {
+                if(!scene.checkCollision2D(
+                    this.x,this.x+this.w,block.x,block.x+block.w,
+                    this.y-this.h,this.y,block.y-block.h,block.y
+                )) {
+                    if(this.dy>0) {
+                        this.on_ground = true
+                        this.stopY(block.y-block.h)
+                    }
+                    if(this.dy<0) {
+                        if(!block.semisolid)
+                        this.stopY(block.y+this.h)
+                    }
+                }
+            }
+        })
+        this.y += this.dy
+        /* temp */
+        if(this.y-this.h>scene.h) {
+            this.stop(BS*3,BS*30-BS*5)
+            this.on_ground = true
+        }
+        /* temp end */
+        if(this.y<H/2) scene.camera.y = 0
+        else if(this.y>scene.h-H/2) scene.camera.y = scene.h-H
+        else scene.camera.y = this.y-H/2
+    }
+    stopX(x) {
+        this.x = x
+        this.dx = 0
+    }
+    stopY(y) {
+        this.y = y
+        this.dy = 0
+        this.vy = 0
+    }
+    stop(x,y) {
+        this.stopX(x)
+        this.stopY(y)
+    }
+    jump() {
+        if(this.on_ground || keys_pressed.h)
+            this.vy = -scene.JUMP_STRENGTH
+    }
+}
+class Block {
+    constructor(x,y,semisolid=false) {
+        this.x = x
+        this.y = y
+        this.w = BS
+        this.h = BS
+        this.semisolid = semisolid
+    }
+    render() {
+        if(this.semisolid)
+            renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,'green')
+        else
+            renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,'#640')
+    }
+}
+
+const load_level = () => {
+    scene = new LevelScene(
+        BS*40,BS*30,
+        BS*3 ,BS*30-BS*5,
+        [
+            new Block(BS*3,BS*28),
+            new Block(BS*4,BS*28),
+            new Block(BS*5,BS*28),
+            new Block(BS*6,BS*28),
+            new Block(BS*7,BS*28),
+            new Block(BS*5,BS*25,true),
+            new Block(BS*6,BS*25,true),
+            new Block(BS*7,BS*25,true),
+            new Block(BS*18,BS*27),
+            new Block(BS*19,BS*27),
+            new Block(BS*20,BS*27),
+            new Block(BS*21,BS*27),
+            new Block(BS*22,BS*27),
+            new Block(BS*21,BS*23,true),
+            new Block(BS*22,BS*23,true),
+            new Block(BS*23,BS*23,true),
+            new Block(BS*24,BS*23,true),
+            new Block(BS*25,BS*23,true),
+        ]
+    )
+}
+const load_world = () => {
+    scene = new WorldScene(
+        0,0,
+        [
+            new Tile(- 2,- 3,'water'),
+            new Tile(- 1,- 3,'water'),
+            new Tile(  0,- 3,'water'),
+            new Tile(  1,- 3,'water'),
+            new Tile(  2,- 3,'water'),
+            new Tile(- 2,- 2,'water'),
+            new Tile(- 1,- 2,'water'),
+            new Tile(  0,- 2,'water'),
+            new Tile(  1,- 2,'water'),
+            new Tile(  2,- 2,'water'),
+            new Tile(- 2,- 1,'water'),
+            new Tile(- 1,- 1,'grass'),
+            new Tile(  0,- 1,'grass'),
+            new Tile(  1,- 1,'grass'),
+            new Tile(  2,- 1,'water'),
+            new Tile(- 2,  0,'water'),
+            new Tile(- 1,  0,'grass'),
+            new Tile(  0,  0,'grass'),
+            new Tile(  1,  0,'grass'),
+            new Tile(  2,  0,'water'),
+            new Tile(- 2,  1,'water'),
+            new Tile(- 1,  1,'ground'),
+            new Tile(  0,  1,'ground'),
+            new Tile(  1,  1,'ground'),
+            new Tile(  2,  1,'water'),
+            new Tile(- 2,  2,'water'),
+            new Tile(- 1,  2,'water'),
+            new Tile(  0,  2,'water'),
+            new Tile(  1,  2,'water'),
+            new Tile(  2,  2,'water'),
+            new Tile(- 2,  3,'water'),
+            new Tile(- 1,  3,'water'),
+            new Tile(  0,  3,'water'),
+            new Tile(  1,  3,'water'),
+            new Tile(  2,  3,'water'),
+        ]
+    )
+}
+let scene = new MenuScene(
+    [new Button(100,100,400,100,'orange',load_world)]
+)
+
+function loop() {
+    scene.loop()
+    requestAnimationFrame(loop)
+}
+addEventListener('load',loop)
+addEventListener('keydown',({key}) => {
+    if(key in keys_pressed && !keys_pressed[key]) {
+        keys_pressed[key] = true
+        scene.onKeyPress(key)
+    }
+})
+addEventListener('keyup',({key}) => {
+    if(key in keys_pressed) {
+        keys_pressed[key] = false
+        scene.onKeyRelease(key)
+    }
+})
+addEventListener('mousedown',({clientX,clientY}) => {
+    mouse.pressed = true
+    mouse.last_pressed.x = clientX
+    mouse.last_pressed.y = clientY
+    scene.onMousePress()
+})
+addEventListener('mouseup',({clientX,clientY}) => {
+    mouse.pressed = false
+    mouse.last_released.x = clientX
+    mouse.last_released.y = clientY
+    scene.onMouseRelease()
+})
+addEventListener('mousemove',({clientX,clientY}) => {
+    mouse.x = clientX
+    mouse.y = clientY
+})
+</script>
