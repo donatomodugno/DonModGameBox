@@ -6,20 +6,29 @@
 </head>
 <style>
     body {margin:0}
+    #wrapper {position:relative;line-height:0}
+    canvas {position:absolute;top:0;left:0}
 </style>
 <body>
-    <canvas id="surface"></canvas>
+    <div id="wrapper">
+        <canvas id="surface"></canvas>
+        <canvas id="transition"></canvas>
+    </div>
 </body>
 <script>
 const BS = 32 /* Block Size */
 const BPW = 20 /* Blocks Per Width */
 const BPH = 15 /* Blocks Per Height */
 const [W,H] = [BS*BPW,BS*BPH] /* Width, Height */
-const canvas = document.getElementById("surface")
+const canvas = document.getElementById('surface')
 canvas.width = W
 canvas.height = H
-const ctx = canvas.getContext("2d")
+const ctx = canvas.getContext('2d')
 ctx.imageSmoothingEnabled = false
+const canvas_t = document.getElementById('transition')
+canvas_t.width = W
+canvas_t.height = H
+const ctx_t = canvas_t.getContext('2d')
 
 function renderRect(x,y,w,h,color) {
     ctx.fillStyle = color
@@ -28,13 +37,23 @@ function renderRect(x,y,w,h,color) {
 function renderClear(x=0,y=0,w=W,h=H) {
     ctx.clearRect(x,y,w,h)
 }
+function renderCircle(x,y,r,color) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(x+r,y+r,r,0,Math.PI*2)
+    ctx.fill()
+}
+function distance(ax,ay,bx,by) {
+    return Math.sqrt((bx-ax)**2+(by-ay)**2)
+}
 
 const keys_pressed = {
     ArrowUp:false,
     ArrowDown:false,
     ArrowLeft:false,
     ArrowRight:false,
-    h:false,
+    c:false, /* Cheats */
+    d:false, /* Debug */
     Enter:false,
 }
 const mouse = {
@@ -43,6 +62,80 @@ const mouse = {
     pressed:false,
     last_pressed:{x:0,y:0},
     last_released:{x:0,y:0},
+}
+const transition = {
+    init(new_scene,{speed_in=2,speed_out=2,delay=1000,center_x=W/2,center_y=H/2,color='black'}={}) {
+        this.state = 'in'
+        this.value = 0
+        this.new_scene = new_scene
+        this.speed_in = speed_in
+        this.speed_out = speed_out
+        this.delay = delay
+        this.center_x = center_x
+        this.center_y = center_y
+        this.color = color
+    },
+    loop() {
+        /* Rendering */
+        this.renderClear()
+        ctx_t.globalCompositeOperation = 'source-out'
+        this.renderCircle(
+            this.center_x,
+            this.center_y,
+            this.findMaxCorner()*(1-this.value/100),
+            'black'
+        )
+        this.renderRect(
+            0,0,W,H,
+            'color-mix(in srgb,'+this.color+' '+this.value+'%,transparent)'
+        )
+        ctx_t.globalCompositeOperation = 'source-over'
+        /* Update */
+        if(this.state=='in') {
+            this.value += this.speed_in
+            if(this.value>=100) {
+                this.state = 'sleep'
+                this.value = 100
+                setTimeout(() => {
+                    this.state = 'out'
+                    this.center_x = W/2
+                    this.center_y = H/2
+                    scene = this.new_scene
+                    scene.loop()
+                    scene.loop()
+                },this.delay)
+            }
+        }
+        if(this.state=='out') {
+            this.value -= this.speed_out
+            if(this.value<=0) {
+                this.state = 'none'
+                this.value = 0
+                this.renderClear()
+            }
+        }
+    },
+    renderClear(x=0,y=0,w=W,h=H) {
+        ctx_t.clearRect(x,y,w,h)
+    },
+    renderRect(x,y,w,h,color) {
+        ctx_t.fillStyle = color
+        ctx_t.fillRect(x,y,w,h)
+    },
+    renderCircle(x,y,r,color) {
+        ctx_t.fillStyle = color
+        ctx_t.beginPath()
+        ctx_t.arc(x,y,r,0,Math.PI*2)
+        ctx_t.fill()
+    },
+    findMaxCorner() {
+        return Math.max(
+            distance(this.center_x,this.center_y,0,0),
+            distance(this.center_x,this.center_y,W,0),
+            distance(this.center_x,this.center_y,0,H),
+            distance(this.center_x,this.center_y,W,H),
+        )
+    },
 }
 
 class MenuScene {
@@ -62,7 +155,7 @@ class MenuScene {
     }
     onKeyPress(key) {}
     onKeyRelease(key) {
-        if(key=='Enter') load_world()
+        if(key=='Enter') transition.init(new WorldScene(world),{speed_in:100,speed_out:100,delay:800})
     }
     onMousePress() {}
     onMouseRelease() {
@@ -97,94 +190,34 @@ class Button {
     }
 }
 class WorldScene {
-    constructor(px,py,tiles=[],paths=[],sceneries=[]) {
-        this.CENTER = {x:BS/2-(W/2)%BS,y:BS/2-(H/2)%BS}
+    constructor(world) {
+        this.initial = world
         this.PLAYER_SPEED = 2
+        this.w = world.cw*BS<W ? W : world.cw*BS
+        this.h = world.ch*BS<H ? H : world.ch*BS
+        this.camera = {x:0,y:0}
+        this.initPlayer()
+        this.initTiles()
+        this.initPaths()
+    }
+    initPlayer() {
         this.player = {
-            x:px*BS,
-            y:py*BS,
+            x:this.getCoordX(this.initial.player.cx),
+            y:this.getCoordY(this.initial.player.cy),
             direction:'idle',
         }
-        this.tiles = tiles
-        this.paths = paths
-        this.sceneries = sceneries
     }
-    loop() {
-        /* Rendering */
-        function renderGrid(color) {
-            for(let i=0;i<=BPH;i++)
-                renderRect(0,scene.CENTER.y+i*BS-scene.player.y%BS,W,1,color)
-            for(let j=0;j<=BPW;j++)
-                renderRect(scene.CENTER.x+j*BS-scene.player.x%BS,0,1,H,color)
-        }
-        renderClear()
-        renderRect(0,0,W,H,'black')
-        this.tiles.forEach(tile => {
-            tile.render()
+    initTiles() {
+        this.tiles = []
+        this.initial.tiles.forEach(tile => {
+            this.tiles.push(new Tile(...this.getCoords(tile.cx,tile.cy),tile.type))
         })
-        renderGrid('grey')
-        renderRect(W/2-BS/2,H/2-BS/2,BS,BS,'red')
-        /* Update */
-        if(this.player.direction=='left') this.player.x -= this.PLAYER_SPEED
-        if(this.player.direction=='right') this.player.x += this.PLAYER_SPEED
-        if(this.player.direction=='up') this.player.y -= this.PLAYER_SPEED
-        if(this.player.direction=='down') this.player.y += this.PLAYER_SPEED
-        if(this.player.x%BS==0 && this.player.y%BS==0)
-            if(
-                (this.player.direction=='left' && !keys_pressed.ArrowLeft)
-                || (this.player.direction=='right' && !keys_pressed.ArrowRight)
-                || (this.player.direction=='up' && !keys_pressed.ArrowUp)
-                || (this.player.direction=='down' && !keys_pressed.ArrowDown)
-            )
-                this.player.direction = 'idle'
     }
-    onKeyPress(key) {
-        if(this.player.direction=='idle') {
-            if(key=='ArrowUp') this.player.direction = 'up'
-            if(key=='ArrowDown') this.player.direction = 'down'
-            if(key=='ArrowLeft') this.player.direction = 'left'
-            if(key=='ArrowRight') this.player.direction = 'right'
-        }
-        if(key=='h') {
-            console.log('Player:',this.player.x/BS,this.player.y/BS)
-            console.log('Tiles:')
-            this.tiles.forEach(tile => {
-                console.log(tile.x/BS,tile.y/BS,tile.type)
-            })
-        }
-    }
-    onKeyRelease(key) {
-        if(key=='Enter') load_level()
-    }
-    onMousePress() {}
-    onMouseRelease() {}
-}
-class Tile {
-    constructor(x,y,type) {
-        this.x = x*BS
-        this.y = y*BS
-        this.w = BS
-        this.h = BS
-        this.type = type
-    }
-    render() {
-        if(this.type=='ground') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#630')
-        if(this.type=='grass') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#080')
-        if(this.type=='water') renderRect(this.x+W/2-scene.player.x,this.y+H/2-scene.player.y,this.w,this.h,'#26F')
-    }
-}
-class LevelScene {
-    constructor(w,h,px,py,blocks=[],bgos=[],npcs=[]) {
-        this.GRAVITY = 0.8
-        this.JUMP_STRENGTH = 15
-        this.MAX_FALL_SPEED = 20
-        this.w = w<W ? W : w
-        this.h = h<H ? H : h
-        this.camera = {x:0,y:0}
-        this.player = new Player(px,py)
-        this.blocks = blocks
-        this.bgos = bgos
-        this.npcs = npcs
+    initPaths() {
+        this.paths = []
+        this.initial.paths.forEach(path => {
+            this.paths.push(new Path(...this.getCoords(path.cx,path.cy),path))
+        })
     }
     loop() {
         /* Rendering */
@@ -195,12 +228,147 @@ class LevelScene {
                 renderRect(j*BS-scene.camera.x%BS,0,1,H,color)
         }
         renderClear()
-        renderRect(0,0,W,H,'#BBB')
+        renderRect(0,0,W,H,'black')
+        this.tiles.forEach(tile => tile.render())
+        this.paths.forEach(path => path.render())
+        renderGrid('grey')
+        renderRect(this.player.x-this.camera.x,this.player.y-this.camera.y,BS,BS,'red')
+        /* Update */
+        if(this.player.direction=='left') this.player.x -= this.PLAYER_SPEED
+        if(this.player.direction=='right') this.player.x += this.PLAYER_SPEED
+        if(this.player.direction=='up') this.player.y -= this.PLAYER_SPEED
+        if(this.player.direction=='down') this.player.y += this.PLAYER_SPEED
+        if(this.player.x%BS==0 && this.player.y%BS==0)
+            if(
+                (this.player.direction=='left' && (!keys_pressed.ArrowLeft || (!this.isAllowed('left') && !keys_pressed.c)))
+                || (this.player.direction=='right' && (!keys_pressed.ArrowRight || (!this.isAllowed('right') && !keys_pressed.c)))
+                || (this.player.direction=='up' && (!keys_pressed.ArrowUp || (!this.isAllowed('up') && !keys_pressed.c)))
+                || (this.player.direction=='down' && (!keys_pressed.ArrowDown || (!this.isAllowed('down') && !keys_pressed.c)))
+            )
+                this.player.direction = 'idle'
+        if(this.player.x+BS/2<W/2) scene.camera.x = 0
+        else if(this.player.x+BS/2>scene.w-W/2) scene.camera.x = scene.w-W
+        else scene.camera.x = this.player.x+BS/2-W/2
+        if(this.player.y+BS/2<H/2) scene.camera.y = 0
+        else if(this.player.y+BS/2>scene.h-H/2) scene.camera.y = scene.h-H
+        else scene.camera.y = this.player.y+BS/2-H/2
+    }
+    onKeyPress(key) {
+        if(this.player.direction=='idle') {
+            if(key=='ArrowUp' && (this.isAllowed('up') || keys_pressed.c)) this.player.direction = 'up'
+            if(key=='ArrowDown' && (this.isAllowed('down') || keys_pressed.c)) this.player.direction = 'down'
+            if(key=='ArrowLeft' && (this.isAllowed('left') || keys_pressed.c)) this.player.direction = 'left'
+            if(key=='ArrowRight' && (this.isAllowed('right') || keys_pressed.c)) this.player.direction = 'right'
+        }
+    }
+    onKeyRelease(key) {
+        if(key=='Enter' && this.isLevel()) transition.init(
+            new LevelScene(level),
+            {
+                center_x:this.player.x-this.camera.x+BS/2,
+                center_y:this.player.y-this.camera.y+BS/2
+            }
+        )
+    }
+    onMousePress() {}
+    onMouseRelease() {}
+    getCoordX(cx) {
+        return cx*BS
+    }
+    getCoordY(cy) {
+        return cy*BS
+    }
+    getCoords(cx,cy) {
+        return [this.getCoordX(cx),this.getCoordY(cy)]
+    }
+    isAllowed(direction) {
+        if(this.player.x%BS!=0 || this.player.y%BS!=0) return false
+        const path = this.paths.find(path => path.x==this.player.x && path.y==this.player.y)
+        if(!path) return false
+        if(direction=='up') return path.allow_up
+        if(direction=='down') return path.allow_down
+        if(direction=='left') return path.allow_left
+        if(direction=='right') return path.allow_right
+    }
+    isLevel() {
+        if(this.player.x%BS!=0 || this.player.y%BS!=0) return false
+        const path = this.paths.find(path => path.x==this.player.x && path.y==this.player.y)
+        if(!path) return false
+        return path.is_level
+    }
+}
+class Tile {
+    constructor(x,y,type) {
+        this.x = x
+        this.y = y
+        this.w = BS
+        this.h = BS
+        this.type = type
+    }
+    render() {
+        if(this.type=='ground') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#630')
+        if(this.type=='grass') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#080')
+        if(this.type=='water') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#26F')
+    }
+}
+class Path {
+    constructor(
+        x,y,{
+            allow_up=false, allow_down=false, allow_left=false, allow_right=false,
+            is_level=false
+        }={
+            allow_up:true,  allow_down:true,  allow_left:true,  allow_right:true,
+            is_level:false
+        }
+    ) {
+        this.x = x
+        this.y = y
+        this.is_level = is_level
+        this.allow_up = allow_up
+        this.allow_down = allow_down
+        this.allow_left = allow_left
+        this.allow_right = allow_right
+    }
+    render() {
+        renderCircle(this.x+4-scene.camera.x,this.y+4-scene.camera.y,BS/2-4,this.is_level ? '#D00' : '#FC6')
+    }
+}
+class LevelScene {
+    constructor(level) {
+        this.initial = level
+        this.GRAVITY = 0.8
+        this.JUMP_STRENGTH = 15
+        this.MAX_FALL_SPEED = 20
+        this.w = level.cw*BS<W ? W : level.cw*BS
+        this.h = level.ch*BS<H ? H : level.ch*BS
+        this.camera = {x:0,y:0}
+        this.initPlayer()
+        this.initBlocks()
+    }
+    initPlayer() {
+        this.player = new Player(...this.getCoords(this.initial.player.cx,this.initial.player.cy))
+    }
+    initBlocks() {
+        this.blocks = []
+        this.initial.blocks.forEach(block => {
+            this.blocks.push(new Block(...this.getCoords(block.cx,block.cy),block.semisolid))
+        })
+    }
+    loop() {
+        /* Rendering */
+        function renderGrid(color) {
+            for(let i=0;i<=BPH;i++)
+                renderRect(0,i*BS-scene.camera.y%BS,W,1,color)
+            for(let j=0;j<=BPW;j++)
+                renderRect(j*BS-scene.camera.x%BS,0,1,H,color)
+        }
+        renderClear()
+        renderRect(0,0,W,H,'lightgrey')
         this.blocks.forEach(block => {
             block.render()
         })
         this.player.render()
-        renderGrid('grey')
+        renderGrid('#FFF4')
         /* Update */
         this.player.update()
     }
@@ -210,14 +378,23 @@ class LevelScene {
     onKeyRelease(key) {}
     onMousePress() {}
     onMouseRelease() {}
-    getCoordX(x) {
+    getCoordX(cx) {
+        return cx*BS
+    }
+    getCoordY(cy) {
+        return this.h-cy*BS
+    }
+    getCoords(cx,cy) {
+        return [this.getCoordX(cx),this.getCoordY(cy)]
+    }
+    getCellCoordX(x) {
         return x/BS
     }
-    getCoordY(y) {
+    getCellCoordY(y) {
         return (this.h-y)/BS
     }
-    getCoords(x,y) {
-        return {x:getCoordX(x),y:getCoordY(y)}
+    getCellCoords(x,y) {
+        return [this.getCellCoordX(x),this.getCellCoordY(y)]
     }
     checkCollision1D(ax1,ax2,bx1,bx2) {
         return ax1<bx2 && ax2>bx1
@@ -295,8 +472,7 @@ class Player {
         this.y += this.dy
         /* temp */
         if(this.y-this.h>scene.h) {
-            this.stop(BS*3,BS*30-BS*5)
-            this.on_ground = true
+            scene.initPlayer()
         }
         /* temp end */
         if(this.y<H/2) scene.camera.y = 0
@@ -317,7 +493,7 @@ class Player {
         this.stopY(y)
     }
     jump() {
-        if(this.on_ground || keys_pressed.h)
+        if(this.on_ground || keys_pressed.c)
             this.vy = -scene.JUMP_STRENGTH
     }
 }
@@ -337,80 +513,111 @@ class Block {
     }
 }
 
-const load_level = () => {
-    scene = new LevelScene(
-        BS*40,BS*30,
-        BS*3 ,BS*30-BS*5,
-        [
-            new Block(BS*3,BS*28),
-            new Block(BS*4,BS*28),
-            new Block(BS*5,BS*28),
-            new Block(BS*6,BS*28),
-            new Block(BS*7,BS*28),
-            new Block(BS*5,BS*25,true),
-            new Block(BS*6,BS*25,true),
-            new Block(BS*7,BS*25,true),
-            new Block(BS*18,BS*27),
-            new Block(BS*19,BS*27),
-            new Block(BS*20,BS*27),
-            new Block(BS*21,BS*27),
-            new Block(BS*22,BS*27),
-            new Block(BS*21,BS*23,true),
-            new Block(BS*22,BS*23,true),
-            new Block(BS*23,BS*23,true),
-            new Block(BS*24,BS*23,true),
-            new Block(BS*25,BS*23,true),
-        ]
-    )
-}
-const load_world = () => {
-    scene = new WorldScene(
-        0,0,
-        [
-            new Tile(- 2,- 3,'water'),
-            new Tile(- 1,- 3,'water'),
-            new Tile(  0,- 3,'water'),
-            new Tile(  1,- 3,'water'),
-            new Tile(  2,- 3,'water'),
-            new Tile(- 2,- 2,'water'),
-            new Tile(- 1,- 2,'water'),
-            new Tile(  0,- 2,'water'),
-            new Tile(  1,- 2,'water'),
-            new Tile(  2,- 2,'water'),
-            new Tile(- 2,- 1,'water'),
-            new Tile(- 1,- 1,'grass'),
-            new Tile(  0,- 1,'grass'),
-            new Tile(  1,- 1,'grass'),
-            new Tile(  2,- 1,'water'),
-            new Tile(- 2,  0,'water'),
-            new Tile(- 1,  0,'grass'),
-            new Tile(  0,  0,'grass'),
-            new Tile(  1,  0,'grass'),
-            new Tile(  2,  0,'water'),
-            new Tile(- 2,  1,'water'),
-            new Tile(- 1,  1,'ground'),
-            new Tile(  0,  1,'ground'),
-            new Tile(  1,  1,'ground'),
-            new Tile(  2,  1,'water'),
-            new Tile(- 2,  2,'water'),
-            new Tile(- 1,  2,'water'),
-            new Tile(  0,  2,'water'),
-            new Tile(  1,  2,'water'),
-            new Tile(  2,  2,'water'),
-            new Tile(- 2,  3,'water'),
-            new Tile(- 1,  3,'water'),
-            new Tile(  0,  3,'water'),
-            new Tile(  1,  3,'water'),
-            new Tile(  2,  3,'water'),
-        ]
-    )
-}
 let scene = new MenuScene(
-    [new Button(100,100,400,100,'orange',load_world)]
+    // [new Button(100,100,400,100,'orange',() => transition.init(new WorldScene(world)))]
+    [new Button(100,100,400,100,'orange',() => transition.init(new WorldScene(world)))]
 )
+transition.state = 'none'
+const world = {
+    cw:24,ch:18,
+    player:{cx:2,cy:4},
+    tiles:[
+        {cx:0,cy:0,type:'water'},
+        {cx:1,cy:0,type:'water'},
+        {cx:2,cy:0,type:'water'},
+        {cx:3,cy:0,type:'water'},
+        {cx:4,cy:0,type:'water'},
+        {cx:5,cy:0,type:'water'},
+        {cx:6,cy:0,type:'water'},
+        {cx:7,cy:0,type:'water'},
+        {cx:0,cy:1,type:'water'},
+        {cx:1,cy:1,type:'grass'},
+        {cx:2,cy:1,type:'grass'},
+        {cx:3,cy:1,type:'grass'},
+        {cx:4,cy:1,type:'grass'},
+        {cx:5,cy:1,type:'grass'},
+        {cx:6,cy:1,type:'grass'},
+        {cx:7,cy:1,type:'water'},
+        {cx:0,cy:2,type:'water'},
+        {cx:1,cy:2,type:'grass'},
+        {cx:2,cy:2,type:'grass'},
+        {cx:3,cy:2,type:'grass'},
+        {cx:4,cy:2,type:'grass'},
+        {cx:5,cy:2,type:'grass'},
+        {cx:6,cy:2,type:'grass'},
+        {cx:7,cy:2,type:'water'},
+        {cx:0,cy:3,type:'water'},
+        {cx:1,cy:3,type:'grass'},
+        {cx:2,cy:3,type:'grass'},
+        {cx:3,cy:3,type:'grass'},
+        {cx:4,cy:3,type:'grass'},
+        {cx:5,cy:3,type:'grass'},
+        {cx:6,cy:3,type:'grass'},
+        {cx:7,cy:3,type:'water'},
+        {cx:0,cy:4,type:'water'},
+        {cx:1,cy:4,type:'grass'},
+        {cx:2,cy:4,type:'grass'},
+        {cx:3,cy:4,type:'grass'},
+        {cx:4,cy:4,type:'grass'},
+        {cx:5,cy:4,type:'grass'},
+        {cx:6,cy:4,type:'grass'},
+        {cx:7,cy:4,type:'water'},
+        {cx:0,cy:5,type:'water'},
+        {cx:1,cy:5,type:'ground'},
+        {cx:2,cy:5,type:'ground'},
+        {cx:3,cy:5,type:'ground'},
+        {cx:4,cy:5,type:'ground'},
+        {cx:5,cy:5,type:'ground'},
+        {cx:6,cy:5,type:'ground'},
+        {cx:7,cy:5,type:'water'},
+        {cx:0,cy:6,type:'water'},
+        {cx:1,cy:6,type:'water'},
+        {cx:2,cy:6,type:'water'},
+        {cx:3,cy:6,type:'water'},
+        {cx:4,cy:6,type:'water'},
+        {cx:5,cy:6,type:'water'},
+        {cx:6,cy:6,type:'water'},
+        {cx:7,cy:6,type:'water'},
+    ],
+    paths:[
+        {cx:2,cy:4,allow_up:true,allow_down:false,allow_left:false,allow_right:false},
+        {cx:2,cy:3,allow_up:true,allow_down:true,allow_left:false,allow_right:false},
+        {cx:2,cy:2,allow_up:false,allow_down:true,allow_left:false,allow_right:true},
+        {cx:3,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
+        {cx:4,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
+        {cx:5,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:false,is_level:true},
+    ],
+}
+const level = {
+    cw:35,ch:25,
+    player:{cx:3,cy:5},
+    blocks:[
+        {cx:3,cy:2,semisolid:false},
+        {cx:4,cy:2,semisolid:false},
+        {cx:5,cy:2,semisolid:false},
+        {cx:6,cy:2,semisolid:false},
+        {cx:7,cy:2,semisolid:false},
+        {cx:5,cy:5,semisolid:true},
+        {cx:6,cy:5,semisolid:true},
+        {cx:7,cy:5,semisolid:true},
+        {cx:18,cy:3,semisolid:false},
+        {cx:19,cy:3,semisolid:false},
+        {cx:20,cy:3,semisolid:false},
+        {cx:21,cy:3,semisolid:false},
+        {cx:22,cy:3,semisolid:false},
+        {cx:21,cy:7,semisolid:false},
+        {cx:22,cy:7,semisolid:false},
+        {cx:23,cy:7,semisolid:false},
+        {cx:24,cy:7,semisolid:false},
+        {cx:25,cy:7,semisolid:false},
+    ]
+}
 
 function loop() {
-    scene.loop()
+    if(transition.state!='none')
+        transition.loop()
+    else
+        scene.loop()
     requestAnimationFrame(loop)
 }
 addEventListener('load',loop)
