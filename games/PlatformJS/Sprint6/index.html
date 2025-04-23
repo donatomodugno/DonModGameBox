@@ -3,6 +3,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PlatformJS (sprint 6)</title>
+    <link rel="icon" href="res/favicon.gif">
 </head>
 <style>
     body {margin:0}
@@ -15,6 +16,16 @@
         <canvas id="transition"></canvas>
     </div>
 </body>
+<script src="res/data.js"></script>
+<script src="src/global.js"></script>
+<script src="src/transition.js"></script>
+<script src="src/scene_menu.js"></script>
+<script src="src/scene_world.js"></script>
+<script src="src/scene_level.js"></script>
+<script src="src/assets.js"></script>
+<script src="src/inputs.js"></script>
+
+<!--
 <script>
 const BS = 32 /* Block Size */
 const BPW = 20 /* Blocks Per Width */
@@ -43,6 +54,13 @@ function renderCircle(x,y,r,color) {
     ctx.arc(x+r,y+r,r,0,Math.PI*2)
     ctx.fill()
 }
+function renderSprite(x,y,w,h,{tileset,src}) {
+    ctx.drawImage(
+        sprites[tileset].img,
+        src.x,src.y,src.w,src.h,
+        x,y,w,h
+    )
+}
 function distance(ax,ay,bx,by) {
     return Math.sqrt((bx-ax)**2+(by-ay)**2)
 }
@@ -63,43 +81,78 @@ const mouse = {
     last_pressed:{x:0,y:0},
     last_released:{x:0,y:0},
 }
+const sprites = {
+    'SMAS-SMB1-grass':{path:'res/graphics/tiles/'},
+    'SMAS-SMB1-world-Mario':{path:'res/graphics/players/'},
+    'SMAS-SMB1-path1':{path:'res/graphics/players/'},
+    'SMAS-SMB1-block1':{path:'res/graphics/blocks/'},
+    'SMAS-SMB1-bridge1':{path:'res/graphics/blocks/'},
+}
+for(id in sprites) {
+    sprites[id].img = new Image()
+    sprites[id].img.src = sprites[id].path+id+'.png'
+}
+
 const transition = {
-    init(new_scene,{speed_in=2,speed_out=2,delay=1000,center_x=W/2,center_y=H/2,color='black'}={}) {
+    init(
+        new_scene,
+        {
+            delay=1000, color='black',
+            type_in='fade',  speed_in=2,  center_x_in=W/2,  center_y_in=H/2,
+            type_out='fade', speed_out=2, center_x_out=W/2, center_y_out=H/2,
+        }={}
+    ) {
         this.state = 'in'
         this.value = 0
         this.new_scene = new_scene
-        this.speed_in = speed_in
-        this.speed_out = speed_out
         this.delay = delay
-        this.center_x = center_x
-        this.center_y = center_y
         this.color = color
+        this.type = type_in
+        this.speed = speed_in
+        this.center_x = center_x_in
+        this.center_y = center_y_in
+        this.out = {
+            type:type_out,
+            speed:speed_out,
+            center_x:center_x_out,
+            center_y:center_y_out,
+        }
     },
     loop() {
         /* Rendering */
         this.renderClear()
-        ctx_t.globalCompositeOperation = 'source-out'
-        this.renderCircle(
-            this.center_x,
-            this.center_y,
-            this.findMaxCorner()*(1-this.value/100),
-            'black'
-        )
-        this.renderRect(
-            0,0,W,H,
-            'color-mix(in srgb,'+this.color+' '+this.value+'%,transparent)'
-        )
-        ctx_t.globalCompositeOperation = 'source-over'
+        if(this.type=='fade') {
+            this.renderRect(
+                0,0,W,H,
+                'color-mix(in srgb,'+this.color+' '+this.value+'%,transparent)'
+            )
+        }
+        if(this.type=='circle') {
+            ctx_t.globalCompositeOperation = 'source-out'
+            this.renderCircle(
+                this.center_x,
+                this.center_y,
+                this.findMaxCorner()*(1-this.value/100),
+                'black'
+            )
+            this.renderRect(
+                0,0,W,H,
+                'color-mix(in srgb,'+this.color+' '+this.value+'%,transparent)'
+            )
+            ctx_t.globalCompositeOperation = 'source-over'
+        }
         /* Update */
         if(this.state=='in') {
-            this.value += this.speed_in
+            this.value += this.speed
             if(this.value>=100) {
                 this.state = 'sleep'
                 this.value = 100
                 setTimeout(() => {
                     this.state = 'out'
-                    this.center_x = W/2
-                    this.center_y = H/2
+                    this.type = this.out.type
+                    this.speed = this.out.speed
+                    this.center_x = this.out.center_x
+                    this.center_y = this.out.center_y
                     scene = this.new_scene
                     scene.loop()
                     scene.loop()
@@ -107,7 +160,7 @@ const transition = {
             }
         }
         if(this.state=='out') {
-            this.value -= this.speed_out
+            this.value -= this.speed
             if(this.value<=0) {
                 this.state = 'none'
                 this.value = 0
@@ -139,9 +192,16 @@ const transition = {
 }
 
 class MenuScene {
-    constructor(buttons=[]) {
+    constructor(menu) {
+        this.initial = menu
         this.background = '#EEE'
-        this.buttons = buttons
+        this.initButtons()
+    }
+    initButtons() {
+        this.buttons = []
+        this.initial.buttons.forEach(button => {
+            this.buttons.push(new Button(button.x,button.y,button.w,button.h,button.color,button.action))
+        })
     }
     loop() {
         renderClear()
@@ -155,7 +215,7 @@ class MenuScene {
     }
     onKeyPress(key) {}
     onKeyRelease(key) {
-        if(key=='Enter') transition.init(new WorldScene(world),{speed_in:100,speed_out:100,delay:800})
+        if(key=='Enter') this.startGame()
     }
     onMousePress() {}
     onMouseRelease() {
@@ -165,9 +225,17 @@ class MenuScene {
             }
         })
     }
+    startGame() {
+        transition.init(new WorldScene(world),{speed_in:100,speed_out:100,delay:800})
+    }
     checkCollitionPoint(ax,ay,bx1,bx2,by1,by2) {
         return ax>bx1 && ax<bx2 && ay>by1 && ay<by2
     }
+}
+const menu = {
+    buttons:[
+        {x:100,y:100,w:400,h:100,color:'orange',action:() => transition.init(new WorldScene(world),{speed_in:5,speed_out:5,delay:800})},
+    ],
 }
 class Button {
     constructor(x,y,w,h,color,action) {
@@ -193,6 +261,33 @@ class WorldScene {
     constructor(world) {
         this.initial = world
         this.PLAYER_SPEED = 2
+        this.TILES = [
+            {id:0,sprite:{tileset:'SMAS-SMB1-grass',src:{x:0,y:0,w:16,h:16}}},
+            {id:1,sprite:{tileset:'SMAS-SMB1-grass',src:{x:16,y:0,w:16,h:16}}},
+            {id:2,sprite:{tileset:'SMAS-SMB1-grass',src:{x:32,y:0,w:16,h:16}}},
+            {id:3,sprite:{tileset:'SMAS-SMB1-grass',src:{x:0,y:16,w:16,h:16}}},
+            {id:4,sprite:{tileset:'SMAS-SMB1-grass',src:{x:16,y:16,w:16,h:16}}},
+            {id:5,sprite:{tileset:'SMAS-SMB1-grass',src:{x:32,y:16,w:16,h:16}}},
+            {id:6,sprite:{tileset:'SMAS-SMB1-grass',src:{x:0,y:32,w:16,h:16}}},
+            {id:7,sprite:{tileset:'SMAS-SMB1-grass',src:{x:16,y:32,w:16,h:16}}},
+            {id:8,sprite:{tileset:'SMAS-SMB1-grass',src:{x:32,y:32,w:16,h:16}}},
+        ]
+        this.PATHS = [
+            /* Two directions */
+            {id:0,allow_up:false,allow_down:false,allow_left:true,allow_right:true,is_level:false},
+            {id:1,allow_up:true,allow_down:true,allow_left:false,allow_right:false,is_level:false},
+            {id:2,allow_up:false,allow_down:true,allow_left:false,allow_right:true,is_level:false},
+            {id:3,allow_up:false,allow_down:true,allow_left:true,allow_right:false,is_level:false},
+            {id:4,allow_up:true,allow_down:false,allow_left:false,allow_right:true,is_level:false},
+            {id:5,allow_up:true,allow_down:false,allow_left:true,allow_right:false,is_level:false},
+            /* Three directions */
+            {id:6,allow_up:false,allow_down:true,allow_left:true,allow_right:true,is_level:false},
+            {id:7,allow_up:true,allow_down:false,allow_left:true,allow_right:true,is_level:false},
+            {id:8,allow_up:true,allow_down:true,allow_left:false,allow_right:true,is_level:false},
+            {id:9,allow_up:true,allow_down:true,allow_left:true,allow_right:false,is_level:false},
+            /* Four directions */
+            {id:10,allow_up:true,allow_down:true,allow_left:true,allow_right:true,is_level:false},
+        ]
         this.w = world.cw*BS<W ? W : world.cw*BS
         this.h = world.ch*BS<H ? H : world.ch*BS
         this.camera = {x:0,y:0}
@@ -204,13 +299,16 @@ class WorldScene {
         this.player = {
             x:this.getCoordX(this.initial.player.cx),
             y:this.getCoordY(this.initial.player.cy),
+            w:BS,
+            h:BS,
             direction:'idle',
+            sprite:{tileset:'SMAS-SMB1-world-Mario',src:{x:0,y:0,w:16,h:16}}
         }
     }
     initTiles() {
         this.tiles = []
         this.initial.tiles.forEach(tile => {
-            this.tiles.push(new Tile(...this.getCoords(tile.cx,tile.cy),tile.type))
+            this.tiles.push(new Tile(tile.id,...this.getCoords(tile.cx,tile.cy)))
         })
     }
     initPaths() {
@@ -228,11 +326,12 @@ class WorldScene {
                 renderRect(j*BS-scene.camera.x%BS,0,1,H,color)
         }
         renderClear()
-        renderRect(0,0,W,H,'black')
+        // renderRect(0,0,W,H,'black')
+        renderRect(-this.camera.x,-this.camera.y,this.w,this.h,'#46F')
         this.tiles.forEach(tile => tile.render())
         this.paths.forEach(path => path.render())
         renderGrid('grey')
-        renderRect(this.player.x-this.camera.x,this.player.y-this.camera.y,BS,BS,'red')
+        renderSprite(this.player.x-scene.camera.x,this.player.y-scene.camera.y,this.player.w,this.player.h,this.player.sprite)
         /* Update */
         if(this.player.direction=='left') this.player.x -= this.PLAYER_SPEED
         if(this.player.direction=='right') this.player.x += this.PLAYER_SPEED
@@ -255,9 +354,9 @@ class WorldScene {
     }
     onKeyPress(key) {
         if(this.player.direction=='idle') {
-            if(key=='ArrowUp' && (this.isAllowed('up') || keys_pressed.c)) this.player.direction = 'up'
-            if(key=='ArrowDown' && (this.isAllowed('down') || keys_pressed.c)) this.player.direction = 'down'
-            if(key=='ArrowLeft' && (this.isAllowed('left') || keys_pressed.c)) this.player.direction = 'left'
+            if(key=='ArrowUp'    && (this.isAllowed('up')    || keys_pressed.c)) this.player.direction = 'up'
+            if(key=='ArrowDown'  && (this.isAllowed('down')  || keys_pressed.c)) this.player.direction = 'down'
+            if(key=='ArrowLeft'  && (this.isAllowed('left')  || keys_pressed.c)) this.player.direction = 'left'
             if(key=='ArrowRight' && (this.isAllowed('right') || keys_pressed.c)) this.player.direction = 'right'
         }
     }
@@ -265,8 +364,9 @@ class WorldScene {
         if(key=='Enter' && this.isLevel()) transition.init(
             new LevelScene(level),
             {
-                center_x:this.player.x-this.camera.x+BS/2,
-                center_y:this.player.y-this.camera.y+BS/2
+                type_in:'circle',
+                center_x_in:this.player.x-this.camera.x+BS/2,
+                center_y_in:this.player.y-this.camera.y+BS/2
             }
         )
     }
@@ -297,18 +397,70 @@ class WorldScene {
         return path.is_level
     }
 }
+const world = {
+    cw:24,ch:18,
+    player:{cx:2,cy:3},
+    tiles:[
+        {cx:0 ,cy:0 ,id:0 },
+        {cx:1 ,cy:0 ,id:1 },
+        {cx:2 ,cy:0 ,id:1 },
+        {cx:3 ,cy:0 ,id:1 },
+        {cx:4 ,cy:0 ,id:1 },
+        {cx:5 ,cy:0 ,id:1 },
+        {cx:6 ,cy:0 ,id:1 },
+        {cx:7 ,cy:0 ,id:2 },
+        {cx:0 ,cy:1 ,id:3 },
+        {cx:1 ,cy:1 ,id:4 },
+        {cx:2 ,cy:1 ,id:4 },
+        {cx:3 ,cy:1 ,id:4 },
+        {cx:4 ,cy:1 ,id:4 },
+        {cx:5 ,cy:1 ,id:4 },
+        {cx:6 ,cy:1 ,id:4 },
+        {cx:7 ,cy:1 ,id:5 },
+        {cx:0 ,cy:2 ,id:3 },
+        {cx:1 ,cy:2 ,id:4 },
+        {cx:2 ,cy:2 ,id:4 },
+        {cx:3 ,cy:2 ,id:4 },
+        {cx:4 ,cy:2 ,id:4 },
+        {cx:5 ,cy:2 ,id:4 },
+        {cx:6 ,cy:2 ,id:4 },
+        {cx:7 ,cy:2 ,id:5 },
+        {cx:0 ,cy:3 ,id:3 },
+        {cx:1 ,cy:3 ,id:4 },
+        {cx:2 ,cy:3 ,id:4 },
+        {cx:3 ,cy:3 ,id:4 },
+        {cx:4 ,cy:3 ,id:4 },
+        {cx:5 ,cy:3 ,id:4 },
+        {cx:6 ,cy:3 ,id:4 },
+        {cx:7 ,cy:3 ,id:5 },
+        {cx:0 ,cy:4 ,id:6 },
+        {cx:1 ,cy:4 ,id:7 },
+        {cx:2 ,cy:4 ,id:7 },
+        {cx:3 ,cy:4 ,id:7 },
+        {cx:4 ,cy:4 ,id:7 },
+        {cx:5 ,cy:4 ,id:7 },
+        {cx:6 ,cy:4 ,id:7 },
+        {cx:7 ,cy:4 ,id:8 },
+    ],
+    paths:[
+        {cx:2,cy:3,allow_up:true,allow_down:false,allow_left:false,allow_right:false},
+        {cx:2,cy:2,allow_up:true,allow_down:true,allow_left:false,allow_right:false},
+        {cx:2,cy:1,allow_up:false,allow_down:true,allow_left:false,allow_right:true},
+        {cx:3,cy:1,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
+        {cx:4,cy:1,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
+        {cx:5,cy:1,allow_up:false,allow_down:false,allow_left:true,allow_right:false,is_level:true},
+    ],
+}
 class Tile {
-    constructor(x,y,type) {
+    constructor(id,x,y) {
+        this.id = id
         this.x = x
         this.y = y
         this.w = BS
         this.h = BS
-        this.type = type
     }
     render() {
-        if(this.type=='ground') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#630')
-        if(this.type=='grass') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#080')
-        if(this.type=='water') renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,'#26F')
+        renderSprite(this.x-scene.camera.x,this.y-scene.camera.y,this.w,this.h,scene.TILES[this.id].sprite)
     }
 }
 class Path {
@@ -339,6 +491,10 @@ class LevelScene {
         this.GRAVITY = 0.8
         this.JUMP_STRENGTH = 15
         this.MAX_FALL_SPEED = 20
+        this.BLOCKS = [
+            {id:0,semisolid:false,sprite:{tileset:'SMAS-SMB1-block1',src:{x:0,y:0,w:32,h:32}}},
+            {id:1,semisolid:true, sprite:{tileset:'SMAS-SMB1-bridge1',src:{x:0,y:0,w:32,h:32}}},
+        ]
         this.w = level.cw*BS<W ? W : level.cw*BS
         this.h = level.ch*BS<H ? H : level.ch*BS
         this.camera = {x:0,y:0}
@@ -351,7 +507,7 @@ class LevelScene {
     initBlocks() {
         this.blocks = []
         this.initial.blocks.forEach(block => {
-            this.blocks.push(new Block(...this.getCoords(block.cx,block.cy),block.semisolid))
+            this.blocks.push(new Block(block.id,...this.getCoords(block.cx,block.cy),this.BLOCKS[block.id].semisolid))
         })
     }
     loop() {
@@ -364,11 +520,11 @@ class LevelScene {
         }
         renderClear()
         renderRect(0,0,W,H,'lightgrey')
+        renderGrid('#FFF4')
         this.blocks.forEach(block => {
             block.render()
         })
         this.player.render()
-        renderGrid('#FFF4')
         /* Update */
         this.player.update()
     }
@@ -405,6 +561,43 @@ class LevelScene {
                 return true
         return false
     }
+    deathScenario() {
+        transition.init(
+            new LevelScene(level),
+            {
+                type_in:'circle',
+                speed_in:5,
+                speed_out:5,
+                center_x_in:this.player.x-this.camera.x+BS/2,
+                center_y_in:this.player.y-this.player.h-this.camera.y+BS/2,
+            }
+        )
+    }
+    winScenario() {}
+}
+const level = {
+    cw:35,ch:25,
+    player:{cx:3,cy:5},
+    blocks:[
+        {id:0 ,cx:3 ,cy:2 },
+        {id:0 ,cx:4 ,cy:2 },
+        {id:0 ,cx:5 ,cy:2 },
+        {id:0 ,cx:6 ,cy:2 },
+        {id:0 ,cx:7 ,cy:2 },
+        {id:1 ,cx:5 ,cy:5 },
+        {id:1 ,cx:6 ,cy:5 },
+        {id:1 ,cx:7 ,cy:5 },
+        {id:0 ,cx:18,cy:3 },
+        {id:0 ,cx:19,cy:3 },
+        {id:0 ,cx:20,cy:3 },
+        {id:0 ,cx:21,cy:3 },
+        {id:0 ,cx:22,cy:3 },
+        {id:0 ,cx:21,cy:7 },
+        {id:0 ,cx:22,cy:7 },
+        {id:0 ,cx:23,cy:7 },
+        {id:0 ,cx:24,cy:7 },
+        {id:0 ,cx:25,cy:7 },
+    ]
 }
 class Player {
     constructor(x,y) {
@@ -470,11 +663,11 @@ class Player {
             }
         })
         this.y += this.dy
-        /* temp */
+        /* Pitfall */
         if(this.y-this.h>scene.h) {
-            scene.initPlayer()
+            scene.deathScenario()
         }
-        /* temp end */
+        /* Camera */
         if(this.y<H/2) scene.camera.y = 0
         else if(this.y>scene.h-H/2) scene.camera.y = scene.h-H
         else scene.camera.y = this.y-H/2
@@ -498,7 +691,8 @@ class Player {
     }
 }
 class Block {
-    constructor(x,y,semisolid=false) {
+    constructor(id,x,y,semisolid=false) {
+        this.id = id
         this.x = x
         this.y = y
         this.w = BS
@@ -506,113 +700,12 @@ class Block {
         this.semisolid = semisolid
     }
     render() {
-        if(this.semisolid)
-            renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,'green')
-        else
-            renderRect(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,'#640')
+        renderSprite(this.x-scene.camera.x,this.y-scene.camera.y,this.w,-this.h,scene.BLOCKS[this.id].sprite)
     }
 }
 
-let scene = new MenuScene(
-    // [new Button(100,100,400,100,'orange',() => transition.init(new WorldScene(world)))]
-    [new Button(100,100,400,100,'orange',() => transition.init(new WorldScene(world)))]
-)
+let scene = new MenuScene(menu)
 transition.state = 'none'
-const world = {
-    cw:24,ch:18,
-    player:{cx:2,cy:4},
-    tiles:[
-        {cx:0,cy:0,type:'water'},
-        {cx:1,cy:0,type:'water'},
-        {cx:2,cy:0,type:'water'},
-        {cx:3,cy:0,type:'water'},
-        {cx:4,cy:0,type:'water'},
-        {cx:5,cy:0,type:'water'},
-        {cx:6,cy:0,type:'water'},
-        {cx:7,cy:0,type:'water'},
-        {cx:0,cy:1,type:'water'},
-        {cx:1,cy:1,type:'grass'},
-        {cx:2,cy:1,type:'grass'},
-        {cx:3,cy:1,type:'grass'},
-        {cx:4,cy:1,type:'grass'},
-        {cx:5,cy:1,type:'grass'},
-        {cx:6,cy:1,type:'grass'},
-        {cx:7,cy:1,type:'water'},
-        {cx:0,cy:2,type:'water'},
-        {cx:1,cy:2,type:'grass'},
-        {cx:2,cy:2,type:'grass'},
-        {cx:3,cy:2,type:'grass'},
-        {cx:4,cy:2,type:'grass'},
-        {cx:5,cy:2,type:'grass'},
-        {cx:6,cy:2,type:'grass'},
-        {cx:7,cy:2,type:'water'},
-        {cx:0,cy:3,type:'water'},
-        {cx:1,cy:3,type:'grass'},
-        {cx:2,cy:3,type:'grass'},
-        {cx:3,cy:3,type:'grass'},
-        {cx:4,cy:3,type:'grass'},
-        {cx:5,cy:3,type:'grass'},
-        {cx:6,cy:3,type:'grass'},
-        {cx:7,cy:3,type:'water'},
-        {cx:0,cy:4,type:'water'},
-        {cx:1,cy:4,type:'grass'},
-        {cx:2,cy:4,type:'grass'},
-        {cx:3,cy:4,type:'grass'},
-        {cx:4,cy:4,type:'grass'},
-        {cx:5,cy:4,type:'grass'},
-        {cx:6,cy:4,type:'grass'},
-        {cx:7,cy:4,type:'water'},
-        {cx:0,cy:5,type:'water'},
-        {cx:1,cy:5,type:'ground'},
-        {cx:2,cy:5,type:'ground'},
-        {cx:3,cy:5,type:'ground'},
-        {cx:4,cy:5,type:'ground'},
-        {cx:5,cy:5,type:'ground'},
-        {cx:6,cy:5,type:'ground'},
-        {cx:7,cy:5,type:'water'},
-        {cx:0,cy:6,type:'water'},
-        {cx:1,cy:6,type:'water'},
-        {cx:2,cy:6,type:'water'},
-        {cx:3,cy:6,type:'water'},
-        {cx:4,cy:6,type:'water'},
-        {cx:5,cy:6,type:'water'},
-        {cx:6,cy:6,type:'water'},
-        {cx:7,cy:6,type:'water'},
-    ],
-    paths:[
-        {cx:2,cy:4,allow_up:true,allow_down:false,allow_left:false,allow_right:false},
-        {cx:2,cy:3,allow_up:true,allow_down:true,allow_left:false,allow_right:false},
-        {cx:2,cy:2,allow_up:false,allow_down:true,allow_left:false,allow_right:true},
-        {cx:3,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
-        {cx:4,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:true},
-        {cx:5,cy:2,allow_up:false,allow_down:false,allow_left:true,allow_right:false,is_level:true},
-    ],
-}
-const level = {
-    cw:35,ch:25,
-    player:{cx:3,cy:5},
-    blocks:[
-        {cx:3,cy:2,semisolid:false},
-        {cx:4,cy:2,semisolid:false},
-        {cx:5,cy:2,semisolid:false},
-        {cx:6,cy:2,semisolid:false},
-        {cx:7,cy:2,semisolid:false},
-        {cx:5,cy:5,semisolid:true},
-        {cx:6,cy:5,semisolid:true},
-        {cx:7,cy:5,semisolid:true},
-        {cx:18,cy:3,semisolid:false},
-        {cx:19,cy:3,semisolid:false},
-        {cx:20,cy:3,semisolid:false},
-        {cx:21,cy:3,semisolid:false},
-        {cx:22,cy:3,semisolid:false},
-        {cx:21,cy:7,semisolid:false},
-        {cx:22,cy:7,semisolid:false},
-        {cx:23,cy:7,semisolid:false},
-        {cx:24,cy:7,semisolid:false},
-        {cx:25,cy:7,semisolid:false},
-    ]
-}
-
 function loop() {
     if(transition.state!='none')
         transition.loop()
@@ -650,3 +743,4 @@ addEventListener('mousemove',({clientX,clientY}) => {
     mouse.y = clientY
 })
 </script>
+-->
